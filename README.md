@@ -1,6 +1,6 @@
 # anchor-csharp
 
-C# SDK for the KeetaNet anchor. The client logic runs inside a sandboxed WebAssembly core (`keetanetwork_anchor_client_wasi.wasm`) hosted in-process by [Wasmtime](https://github.com/bytecodealliance/wasmtime-dotnet); this repository is the managed surface over it.
+C# SDK for the KeetaNet anchor. The client logic runs inside a sandboxed WebAssembly core (`keetanetwork_anchor_client_wasi.wasm`, built from [anchor-rs](https://github.com/KeetaNetwork/anchor-rs)) hosted in-process by [Wasmtime](https://github.com/bytecodealliance/wasmtime-dotnet).
 
 ## Packages
 
@@ -10,7 +10,7 @@ C# SDK for the KeetaNet anchor. The client logic runs inside a sandboxed WebAsse
 
 ## Requirements
 
-- .NET SDK per [`global.json`](global.json) (.NET 10; the library targets `net8.0` and `net10.0`).
+- .NET SDK per [`global.json`](global.json) (.NET 10 - the library targets `net8.0` and `net10.0`).
 - Rust with the `wasm32-wasip1` target, for `make wasm` only (`rustup target add wasm32-wasip1`). NuGet consumers do not need Rust: the wasm core ships embedded in the package.
 - Node.js 20 and a GitHub Packages token, for `make test` only (the e2e suite drives the reference TypeScript anchor; see [CONTRIBUTING](CONTRIBUTING.md)).
 
@@ -40,7 +40,7 @@ Use the `Makefile`, not raw `dotnet`, for every task:
 
 Everything starts from a `WasmRuntime`, which loads the embedded wasm core and owns the dispatcher thread all calls serialize onto. Create one per application and dispose it last: every object below borrows it.
 
-The runtime is thread-safe. Offline operations (crypto, certificates, containers) dispatch synchronously; networked client operations are `async`, accept a `CancellationToken`, and honor it before dispatch and during host HTTP and sleeps.
+The runtime is thread-safe. Non-network operations (crypto, certificates, containers) dispatch synchronously. Networked client operations are `async`, accept a `CancellationToken`, and honor it before dispatch and during host HTTP and sleeps.
 
 ```csharp
 using KeetaNet.Anchor;
@@ -49,7 +49,7 @@ using KeetaNet.Anchor.Crypto;
 using var runtime = WasmRuntime.Load();
 ```
 
-Every handle-backed type (`Account`, certificates, containers, clients) implements `IDisposable`. Wrap them in `using`; dispose them before the runtime.
+Every handle-backed type (`Account`, certificates, containers, clients) implements `IDisposable`. Wrap them in `using` and dispose them before the runtime.
 
 ### Accounts
 
@@ -78,7 +78,7 @@ using Account watcher = Account.FromAddress(runtime, signer.Address);
 
 ### KYC verification flow
 
-`KycClient` discovers providers from on-chain service metadata (read through a node API), then drives a verification end to end. Requests are signed by the bound account; discovery, signing, retries, and polling all run inside the core.
+`KycClient` discovers providers from on-chain service metadata (read through a node API), then drives a verification end to end. Requests are signed by the bound account. Discovery, signing, retries, and polling all run inside the core.
 
 Provider results use the pending-or-ready shape: `Ready` carries the value, otherwise `RetryAfterMs` says when to ask again.
 
@@ -133,7 +133,7 @@ JsonElement address = leaf.GetJson("address", subject);
 
 ### Selective disclosure with proofs
 
-A holder can attest to one sensitive attribute without revealing the private key. `Prove` decrypts the attribute and produces an `AttributeProof`; anyone holding the leaf validates it with only the subject's public key.
+A holder can attest to one sensitive attribute without revealing the private key. `Prove` decrypts the attribute and produces an `AttributeProof`. Anyone holding the leaf validates it with only the subject's public key.
 
 ```csharp
 // Holder: decrypt and prove one attribute.
@@ -263,7 +263,7 @@ catch (KeetaException error)
 
 ## WASM Core
 
-The `make wasm` command downloads the pinned `keetanetwork-anchor-client-wasi` release from crates.io, verifies its sha256 checksum, builds it for `wasm32-wasip1`, and places the artifact where the library embeds it as a resource. The version and checksum pins live in [`scripts/build-wasm.sh`](scripts/build-wasm.sh).
+The `make wasm` command downloads the pinned [`keetanetwork-anchor-client-wasi`](https://crates.io/crates/keetanetwork-anchor-client-wasi) release (published from [anchor-rs](https://github.com/KeetaNetwork/anchor-rs)) from crates.io, verifies its sha256 checksum, builds it for `wasm32-wasip1`, and places the artifact where the library embeds it as a resource. The version and checksum pins live in [`scripts/build-wasm.sh`](scripts/build-wasm.sh).
 
 ## FFI Safety Model
 
