@@ -16,6 +16,11 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!-- Only for the debug leak counter, which has no public surface. -->
+		<InternalsVisibleTo Include="KeetaNet.Anchor.Tests" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<EmbeddedResource Include="wasm/keetanetwork_anchor_client_wasi.wasm" LogicalName="KeetaNet.Anchor.keetanetwork_anchor_client_wasi.wasm" />
 	</ItemGroup>
 

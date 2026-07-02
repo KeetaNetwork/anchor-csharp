@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 namespace KeetaNet.Anchor;
@@ -10,16 +9,11 @@ namespace KeetaNet.Anchor;
 /// onto the runtime's dispatcher, and every networked method honors its
 /// <see cref="CancellationToken"/> before dispatch and during host HTTP and sleeps.
 /// </summary>
-public sealed class AssetMovementClient : IDisposable
+public sealed class AssetMovementClient : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private readonly int _handle;
-	private bool _disposed;
-
 	private AssetMovementClient(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		_handle = handle;
 	}
 
 	/// <summary>
@@ -36,21 +30,21 @@ public sealed class AssetMovementClient : IDisposable
 	/// <summary>Every advertised provider.</summary>
 	public async Task<IReadOnlyList<AssetProvider>> ProvidersAsync(CancellationToken cancellationToken = default)
 	{
-		byte[] payload = await _runtime.AssetProviders(_handle, cancellationToken).ConfigureAwait(false);
+		byte[] payload = await Runtime.AssetProviders(Handle, cancellationToken).ConfigureAwait(false);
 		return KeetaJson.ReadList<AssetProvider>(payload);
 	}
 
 	/// <summary>The provider with <paramref name="id"/>, or null when none advertises it.</summary>
 	public async Task<AssetProvider?> ProviderByIdAsync(string id, CancellationToken cancellationToken = default)
 	{
-		byte[] payload = await _runtime.AssetProviderById(_handle, id, cancellationToken).ConfigureAwait(false);
+		byte[] payload = await Runtime.AssetProviderById(Handle, id, cancellationToken).ConfigureAwait(false);
 		return ParseOptionalProvider(payload);
 	}
 
 	/// <summary>The provider signed by <paramref name="account"/>, or null when absent.</summary>
 	public async Task<AssetProvider?> ProviderByAccountAsync(string account, CancellationToken cancellationToken = default)
 	{
-		byte[] payload = await _runtime.AssetProviderByAccount(_handle, account, cancellationToken).ConfigureAwait(false);
+		byte[] payload = await Runtime.AssetProviderByAccount(Handle, account, cancellationToken).ConfigureAwait(false);
 		return ParseOptionalProvider(payload);
 	}
 
@@ -63,8 +57,8 @@ public sealed class AssetMovementClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		string searchJson = Serialize(search);
-		byte[] payload = await _runtime
-			.AssetProvidersForTransfer(_handle, searchJson, cancellationToken)
+		byte[] payload = await Runtime
+			.AssetProvidersForTransfer(Handle, searchJson, cancellationToken)
 			.ConfigureAwait(false);
 
 		return KeetaJson.ReadList<AssetProvider>(payload);
@@ -75,11 +69,9 @@ public sealed class AssetMovementClient : IDisposable
 	/// <paramref name="operation"/> endpoint (e.g. <c>initiateTransfer</c>,
 	/// <c>createPersistentForwarding</c>).
 	/// </summary>
-	[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "An instance member for API symmetry with the TypeScript client.")]
 	public bool IsOperationSupported(AssetProvider provider, string operation) => provider.Operations.ContainsKey(operation);
 
 	/// <summary>The provider's advertised legal disclaimers, or null when none.</summary>
-	[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "An instance member for API symmetry with the TypeScript client.")]
 	public JsonElement? GetLegalDisclaimers(AssetProvider provider) => provider.Legal;
 
 	/// <summary>
@@ -100,7 +92,6 @@ public sealed class AssetMovementClient : IDisposable
 	/// chain asset id) at <paramref name="location"/> (a canonical location
 	/// string), or null when the provider advertises none.
 	/// </summary>
-	[SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "An instance member for API symmetry with the TypeScript client.")]
 	public JsonElement? GetAssetMetadataForLocation(AssetProvider provider, string location, string asset)
 	{
 		if (provider.LocationMetadata is not { } metadata || metadata.ValueKind != JsonValueKind.Object)
@@ -130,9 +121,7 @@ public sealed class AssetMovementClient : IDisposable
 		AssetTransferRequest request,
 		CancellationToken cancellationToken = default)
 	{
-		var transport = await ReadOperationAsync<AssetSimulatedTransferTransport>(
-			_runtime.AssetSimulateTransfer, provider, request, cancellationToken).ConfigureAwait(false);
-
+		var transport = await ReadOperationAsync<AssetSimulatedTransferTransport>(Runtime.AssetSimulateTransfer, provider, request, cancellationToken).ConfigureAwait(false);
 		return new AssetSimulatedTransfer(this, provider, request, transport.InstructionChoices);
 	}
 
@@ -142,9 +131,7 @@ public sealed class AssetMovementClient : IDisposable
 		AssetTransferRequest request,
 		CancellationToken cancellationToken = default)
 	{
-		var transport = await ReadOperationAsync<AssetTransferTransport>(
-			_runtime.AssetInitiateTransfer, provider, request, cancellationToken).ConfigureAwait(false);
-
+		var transport = await ReadOperationAsync<AssetTransferTransport>(Runtime.AssetInitiateTransfer, provider, request, cancellationToken).ConfigureAwait(false);
 		return new AssetTransfer(this, provider, transport.Id, transport.InstructionChoices);
 	}
 
@@ -153,14 +140,14 @@ public sealed class AssetMovementClient : IDisposable
 		AssetProvider provider,
 		AssetExecuteRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetTransferStatus>(_runtime.AssetExecuteTransfer, provider, request, cancellationToken);
+		ReadOperationAsync<AssetTransferStatus>(Runtime.AssetExecuteTransfer, provider, request, cancellationToken);
 
 	/// <summary>Read the status of transfer <paramref name="id"/>.</summary>
 	public Task<AssetTransferStatus> TransferStatusAsync(
 		AssetProvider provider,
 		string id,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationForIdAsync<AssetTransferStatus>(_runtime.AssetTransferStatus, provider, id, cancellationToken);
+		ReadOperationForIdAsync<AssetTransferStatus>(Runtime.AssetTransferStatus, provider, id, cancellationToken);
 
 	/// <summary>Read whether the signer's account is ready to use this provider.</summary>
 	public async Task<AssetAccountStatus> AccountStatusAsync(
@@ -168,7 +155,7 @@ public sealed class AssetMovementClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		string providerJson = Serialize(provider);
-		byte[] payload = await _runtime.AssetAccountStatus(_handle, providerJson, cancellationToken).ConfigureAwait(false);
+		byte[] payload = await Runtime.AssetAccountStatus(Handle, providerJson, cancellationToken).ConfigureAwait(false);
 
 		return Read<AssetAccountStatus>(payload);
 	}
@@ -178,56 +165,56 @@ public sealed class AssetMovementClient : IDisposable
 		AssetProvider provider,
 		AssetInitiateTemplateRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetTemplateSession>(_runtime.AssetInitiateForwardingTemplate, provider, request, cancellationToken);
+		ReadOperationAsync<AssetTemplateSession>(Runtime.AssetInitiateForwardingTemplate, provider, request, cancellationToken);
 
 	/// <summary>Create a persistent-forwarding template.</summary>
 	public Task<AssetForwardingTemplate> CreateForwardingTemplateAsync(
 		AssetProvider provider,
 		AssetCreateTemplateRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetForwardingTemplate>(_runtime.AssetCreateForwardingTemplate, provider, request, cancellationToken);
+		ReadOperationAsync<AssetForwardingTemplate>(Runtime.AssetCreateForwardingTemplate, provider, request, cancellationToken);
 
 	/// <summary>List persistent-forwarding templates.</summary>
 	public Task<AssetTemplatePage> ListForwardingTemplatesAsync(
 		AssetProvider provider,
 		AssetListTemplatesRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetTemplatePage>(_runtime.AssetListForwardingTemplates, provider, request, cancellationToken);
+		ReadOperationAsync<AssetTemplatePage>(Runtime.AssetListForwardingTemplates, provider, request, cancellationToken);
 
 	/// <summary>Create a persistent-forwarding address, returning its (obfuscated) details.</summary>
 	public Task<JsonElement> CreateForwardingAddressAsync(
 		AssetProvider provider,
 		AssetCreateAddressRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<JsonElement>(_runtime.AssetCreateForwardingAddress, provider, request, cancellationToken);
+		ReadOperationAsync<JsonElement>(Runtime.AssetCreateForwardingAddress, provider, request, cancellationToken);
 
 	/// <summary>List persistent-forwarding addresses.</summary>
 	public Task<AssetAddressPage> ListForwardingAddressesAsync(
 		AssetProvider provider,
 		AssetListAddressesRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetAddressPage>(_runtime.AssetListForwardingAddresses, provider, request, cancellationToken);
+		ReadOperationAsync<AssetAddressPage>(Runtime.AssetListForwardingAddresses, provider, request, cancellationToken);
 
 	/// <summary>Deactivate a persistent-forwarding template by id.</summary>
 	public Task DeactivateForwardingTemplateAsync(
 		AssetProvider provider,
 		string id,
 		CancellationToken cancellationToken = default) =>
-		RunOperationForIdAsync(_runtime.AssetDeactivateForwardingTemplate, provider, id, cancellationToken);
+		RunOperationForIdAsync(Runtime.AssetDeactivateForwardingTemplate, provider, id, cancellationToken);
 
 	/// <summary>Deactivate a persistent-forwarding address by id.</summary>
 	public Task DeactivateForwardingAddressAsync(
 		AssetProvider provider,
 		string id,
 		CancellationToken cancellationToken = default) =>
-		RunOperationForIdAsync(_runtime.AssetDeactivateForwardingAddress, provider, id, cancellationToken);
+		RunOperationForIdAsync(Runtime.AssetDeactivateForwardingAddress, provider, id, cancellationToken);
 
 	/// <summary>List asset-movement transactions.</summary>
 	public Task<AssetTransactionPage> ListTransactionsAsync(
 		AssetProvider provider,
 		AssetListTransactionsRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetTransactionPage>(_runtime.AssetListTransactions, provider, request, cancellationToken);
+		ReadOperationAsync<AssetTransactionPage>(Runtime.AssetListTransactions, provider, request, cancellationToken);
 
 	/// <summary>
 	/// Share KYC attributes with the provider, returning the outcome verbatim.
@@ -238,7 +225,7 @@ public sealed class AssetMovementClient : IDisposable
 		AssetProvider provider,
 		AssetShareKycRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<AssetShareKycOutcome>(_runtime.AssetShareKyc, provider, request, cancellationToken);
+		ReadOperationAsync<AssetShareKycOutcome>(Runtime.AssetShareKyc, provider, request, cancellationToken);
 
 	/// <summary>
 	/// Share KYC attributes and, when the outcome is pending with a promise URL,
@@ -255,8 +242,8 @@ public sealed class AssetMovementClient : IDisposable
 		string requestJson = Serialize(request);
 		int intervalMs = ToWholeMilliseconds(pollInterval);
 		int timeoutMs = ToWholeMilliseconds(timeout);
-		byte[] payload = await _runtime
-			.AssetShareKycAwait(_handle, providerJson, requestJson, intervalMs, timeoutMs, cancellationToken)
+		byte[] payload = await Runtime
+			.AssetShareKycAwait(Handle, providerJson, requestJson, intervalMs, timeoutMs, cancellationToken)
 			.ConfigureAwait(false);
 
 		return Read<AssetShareKycOutcome>(payload);
@@ -271,8 +258,8 @@ public sealed class AssetMovementClient : IDisposable
 	{
 		string providerJson = Serialize(provider);
 		string requestJson = Serialize(request);
-		byte[] payload = await operation(_handle, providerJson, requestJson, cancellationToken).ConfigureAwait(false);
 
+		byte[] payload = await operation(Handle, providerJson, requestJson, cancellationToken).ConfigureAwait(false);
 		return Read<TResponse>(payload);
 	}
 
@@ -284,8 +271,8 @@ public sealed class AssetMovementClient : IDisposable
 		CancellationToken cancellationToken)
 	{
 		string providerJson = Serialize(provider);
-		byte[] payload = await operation(_handle, providerJson, id, cancellationToken).ConfigureAwait(false);
 
+		byte[] payload = await operation(Handle, providerJson, id, cancellationToken).ConfigureAwait(false);
 		return Read<TResponse>(payload);
 	}
 
@@ -297,7 +284,7 @@ public sealed class AssetMovementClient : IDisposable
 		CancellationToken cancellationToken)
 	{
 		string providerJson = Serialize(provider);
-		await operation(_handle, providerJson, id, cancellationToken).ConfigureAwait(false);
+		await operation(Handle, providerJson, id, cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>A bound as whole milliseconds, with 0 selecting the core default.</summary>
@@ -329,15 +316,5 @@ public sealed class AssetMovementClient : IDisposable
 		return root.Deserialize<AssetProvider>(KeetaJson.Options);
 	}
 
-	/// <summary>Release the core-module client handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.AssetFree(_handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.AssetFree(handle);
 }

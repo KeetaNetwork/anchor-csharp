@@ -87,6 +87,30 @@ internal sealed class WasmDispatcher : IDisposable
 		return completion.Task;
 	}
 
+	/// <summary>
+	/// Queue fire-and-forget <paramref name="work"/>, returning false once the
+	/// dispatcher has shut down. Never blocks and never throws, so it is safe
+	/// from any thread - including the finalizer thread.
+	/// </summary>
+	public bool TryPost(Action work)
+	{
+		if (_disposed)
+		{
+			return false;
+		}
+
+		try
+		{
+			_queue.Add(work);
+			return true;
+		}
+		catch (InvalidOperationException)
+		{
+			// Dispose completed or released the queue between the check and the add.
+			return false;
+		}
+	}
+
 	private void ProcessQueue()
 	{
 		foreach (Action job in _queue.GetConsumingEnumerable())

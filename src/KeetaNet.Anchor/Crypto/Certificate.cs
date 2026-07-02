@@ -3,18 +3,11 @@ namespace KeetaNet.Anchor.Crypto;
 /// <summary>
 /// A base X.509 certificate: a provider CA, a trust root, or an intermediate.
 /// </summary>
-public sealed class Certificate : IDisposable
+public sealed class Certificate : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private bool _disposed;
-
-	/// <summary>The core-module handle backing this certificate.</summary>
-	internal int Handle { get; }
-
 	internal Certificate(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		Handle = handle;
 	}
 
 	/// <summary>Parse a PEM-encoded certificate.</summary>
@@ -32,33 +25,33 @@ public sealed class Certificate : IDisposable
 	}
 
 	/// <summary>The PEM encoding of the certificate.</summary>
-	public string Pem() => _runtime.CertificatePem(Handle);
+	public string Pem() => Runtime.CertificatePem(Handle);
 
 	/// <summary>The DER encoding of the certificate.</summary>
-	public byte[] Der() => _runtime.CertificateDer(Handle);
+	public byte[] Der() => Runtime.CertificateDer(Handle);
 
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
 	public bool ValidAt(DateTimeOffset moment)
 	{
 		long unixMillis = moment.ToUnixTimeMilliseconds();
-		return _runtime.CertificateValidAt(Handle, unixMillis);
+		return Runtime.CertificateValidAt(Handle, unixMillis);
 	}
 
 	/// <summary>The subject distinguished name as an RFC 4514 string.</summary>
-	public string Subject => _runtime.CertificateSubject(Handle);
+	public string Subject => Runtime.CertificateSubject(Handle);
 
 	/// <summary>The issuer distinguished name as an RFC 4514 string.</summary>
-	public string Issuer => _runtime.CertificateIssuer(Handle);
+	public string Issuer => Runtime.CertificateIssuer(Handle);
 
 	/// <summary>The serial number as a base-10 string.</summary>
-	public string Serial => _runtime.CertificateSerial(Handle);
+	public string Serial => Runtime.CertificateSerial(Handle);
 
 	/// <summary>The start of the validity window.</summary>
 	public DateTimeOffset NotBefore
 	{
 		get
 		{
-			long unixSeconds = _runtime.CertificateNotBefore(Handle);
+			long unixSeconds = Runtime.CertificateNotBefore(Handle);
 			return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
 		}
 	}
@@ -68,7 +61,7 @@ public sealed class Certificate : IDisposable
 	{
 		get
 		{
-			long unixSeconds = _runtime.CertificateNotAfter(Handle);
+			long unixSeconds = Runtime.CertificateNotAfter(Handle);
 			return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
 		}
 	}
@@ -77,17 +70,7 @@ public sealed class Certificate : IDisposable
 	/// The subject public key, type-prefixed and hex-encoded to match
 	/// <see cref="Account.PublicKey"/>, so a subject can be matched to an account.
 	/// </summary>
-	public string SubjectPublicKey => _runtime.CertificateSubjectPublicKey(Handle);
+	public string SubjectPublicKey => Runtime.CertificateSubjectPublicKey(Handle);
 
-	/// <summary>Release the core-module certificate handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.CertificateFree(Handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.CertificateFree(handle);
 }

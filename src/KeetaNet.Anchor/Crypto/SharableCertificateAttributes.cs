@@ -4,21 +4,13 @@ namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
 /// A sealed, selectively disclosed subset of a KYC certificate's attributes.
-/// The bundle and its derived state live inside the wasm core; this wrapper
-/// holds only the handle and releases it on <see cref="Dispose"/>.
+/// The bundle and its derived state live inside the wasm core.
 /// </summary>
-public sealed class SharableCertificateAttributes : IDisposable
+public sealed class SharableCertificateAttributes : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private bool _disposed;
-
-	/// <summary>The core-module handle backing this bundle.</summary>
-	internal int Handle { get; }
-
 	private SharableCertificateAttributes(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		Handle = handle;
 	}
 
 	/// <summary>
@@ -69,59 +61,59 @@ public sealed class SharableCertificateAttributes : IDisposable
 	public void GrantAccess(IEnumerable<Account> accounts)
 	{
 		int[] handles = Handles.Of(accounts);
-		_runtime.SharableGrantAccess(Handle, handles);
+		Runtime.SharableGrantAccess(Handle, handles);
 	}
 
 	/// <summary>Revoke the account identified by its type-prefixed <paramref name="publicKey"/>.</summary>
-	public void RevokeAccess(byte[] publicKey) => _runtime.SharableRevokeAccess(Handle, publicKey);
+	public void RevokeAccess(byte[] publicKey) => Runtime.SharableRevokeAccess(Handle, publicKey);
 
 	/// <summary>The type-prefixed public keys of the accounts that can open the bundle.</summary>
 	public IReadOnlyList<byte[]> Principals()
 	{
-		byte[] payload = _runtime.SharablePrincipals(Handle);
+		byte[] payload = Runtime.SharablePrincipals(Handle);
 		return PrincipalKeys.Decode(payload);
 	}
 
 	/// <summary>The bundle's DER-encoded container bytes, requiring a granted recipient.</summary>
-	public byte[] Export() => _runtime.SharableExport(Handle);
+	public byte[] Export() => Runtime.SharableExport(Handle);
 
 	/// <summary>The bundle exported as a PEM envelope.</summary>
-	public string ToPem() => _runtime.SharableToPem(Handle);
+	public string ToPem() => Runtime.SharableToPem(Handle);
 
 	/// <summary>The embedded leaf certificate, as an independently owned object.</summary>
 	public KycCertificate LeafCertificate()
 	{
-		int handle = _runtime.SharableCertificate(Handle);
-		return KycCertificate.Adopt(_runtime, handle);
+		int handle = Runtime.SharableCertificate(Handle);
+		return KycCertificate.Adopt(Runtime, handle);
 	}
 
 	/// <summary>The embedded intermediate certificate chain, as owned objects.</summary>
 	public IReadOnlyList<Certificate> Intermediates()
 	{
-		byte[] payload = _runtime.SharableIntermediates(Handle);
+		byte[] payload = Runtime.SharableIntermediates(Handle);
 		string[] pems = JsonSerializer.Deserialize<string[]>(payload) ?? Array.Empty<string>();
 
-		return pems.Select(pem => Certificate.Parse(_runtime, pem)).ToList();
+		return pems.Select(pem => Certificate.Parse(Runtime, pem)).ToList();
 	}
 
 	/// <summary>The names of the disclosed attributes.</summary>
 	public IReadOnlyList<string> AttributeNames()
 	{
-		byte[] payload = _runtime.SharableAttributeNames(Handle);
+		byte[] payload = Runtime.SharableAttributeNames(Handle);
 		return JsonSerializer.Deserialize<string[]>(payload) ?? Array.Empty<string>();
 	}
 
 	/// <summary>The validated raw disclosed value for <paramref name="name"/>, or <c>null</c> when not disclosed.</summary>
 	public byte[]? AttributeBuffer(string name)
 	{
-		byte[] value = _runtime.SharableAttributeBuffer(Handle, name);
+		byte[] value = Runtime.SharableAttributeBuffer(Handle, name);
 		return NullWhenEmpty(value);
 	}
 
 	/// <summary>The schema-decoded semantic value for <paramref name="name"/>, or <c>null</c> when not disclosed.</summary>
 	public byte[]? AttributeValue(string name)
 	{
-		byte[] value = _runtime.SharableAttributeValue(Handle, name);
+		byte[] value = Runtime.SharableAttributeValue(Handle, name);
 		return NullWhenEmpty(value);
 	}
 
@@ -136,15 +128,5 @@ public sealed class SharableCertificateAttributes : IDisposable
 		return value;
 	}
 
-	/// <summary>Release the core-module bundle handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.SharableFree(Handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.SharableFree(handle);
 }

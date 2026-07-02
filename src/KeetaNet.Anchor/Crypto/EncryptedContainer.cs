@@ -2,21 +2,13 @@ namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
 /// A hybrid-encrypted, optionally signed container. The blob and its derived
-/// state live inside the wasm core; this wrapper holds only the handle and
-/// releases it on <see cref="Dispose"/>.
+/// state live inside the wasm core.
 /// </summary>
-public sealed class EncryptedContainer : IDisposable
+public sealed class EncryptedContainer : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private bool _disposed;
-
-	/// <summary>The core-module handle backing this container.</summary>
-	internal int Handle { get; }
-
 	private EncryptedContainer(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		Handle = handle;
 	}
 
 	/// <summary>
@@ -72,19 +64,19 @@ public sealed class EncryptedContainer : IDisposable
 	}
 
 	/// <summary>The decrypted, decompressed plaintext.</summary>
-	public byte[] Plaintext() => _runtime.EncryptedContainerGetPlaintext(Handle);
+	public byte[] Plaintext() => Runtime.EncryptedContainerGetPlaintext(Handle);
 
 	/// <summary>The container's DER encoding.</summary>
-	public byte[] Encoded() => _runtime.EncryptedContainerGetEncoded(Handle);
+	public byte[] Encoded() => Runtime.EncryptedContainerGetEncoded(Handle);
 
 	/// <summary>Whether the container is sealed to a principal set.</summary>
-	public bool IsEncrypted => _runtime.EncryptedContainerIsEncrypted(Handle);
+	public bool IsEncrypted => Runtime.EncryptedContainerIsEncrypted(Handle);
 
 	/// <summary>Whether a signer is attached or a signature is present.</summary>
-	public bool IsSigned => _runtime.EncryptedContainerIsSigned(Handle);
+	public bool IsSigned => Runtime.EncryptedContainerIsSigned(Handle);
 
 	/// <summary>Verify the detached signature over the compressed payload.</summary>
-	public bool VerifySignature() => _runtime.EncryptedContainerVerifySignature(Handle);
+	public bool VerifySignature() => Runtime.EncryptedContainerVerifySignature(Handle);
 
 	/// <summary>
 	/// The type-prefixed public key of the signing account, or <c>null</c> when
@@ -92,7 +84,7 @@ public sealed class EncryptedContainer : IDisposable
 	/// </summary>
 	public byte[]? SigningAccount()
 	{
-		byte[] key = _runtime.EncryptedContainerSigningAccount(Handle);
+		byte[] key = Runtime.EncryptedContainerSigningAccount(Handle);
 		if (key.Length == 0)
 		{
 			return null;
@@ -104,7 +96,7 @@ public sealed class EncryptedContainer : IDisposable
 	/// <summary>The type-prefixed public keys of the accounts that can open it.</summary>
 	public IReadOnlyList<byte[]> Principals()
 	{
-		byte[] payload = _runtime.EncryptedContainerPrincipals(Handle);
+		byte[] payload = Runtime.EncryptedContainerPrincipals(Handle);
 		return PrincipalKeys.Decode(payload);
 	}
 
@@ -112,21 +104,11 @@ public sealed class EncryptedContainer : IDisposable
 	public void GrantAccess(IEnumerable<Account> accounts)
 	{
 		int[] handles = Handles.Of(accounts);
-		_runtime.EncryptedContainerGrantAccess(Handle, handles);
+		Runtime.EncryptedContainerGrantAccess(Handle, handles);
 	}
 
 	/// <summary>Revoke the account identified by its type-prefixed <paramref name="publicKey"/>.</summary>
-	public void RevokeAccess(byte[] publicKey) => _runtime.EncryptedContainerRevokeAccess(Handle, publicKey);
+	public void RevokeAccess(byte[] publicKey) => Runtime.EncryptedContainerRevokeAccess(Handle, publicKey);
 
-	/// <summary>Release the core-module container handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.EncryptedContainerFree(Handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.EncryptedContainerFree(handle);
 }

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -6,14 +5,12 @@ using System.Text.Json;
 namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>One KYC attribute: its OID <see cref="Name"/> and whether its value is encrypted.</summary>
-[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "A KYC certificate attribute is the domain term, matching the TypeScript client; it is not a System.Attribute.")]
 public sealed record KycAttribute(string Name, bool Sensitive);
 
 /// <summary>
 /// A proof attesting to a sensitive attribute's committed value. It validates
 /// against the certificate with only the subject's public key, so a holder can
-/// disclose a single attribute without revealing the private key. <see cref="Value"/>
-/// is the base64 attribute value revealed; <see cref="Salt"/> its base64 commitment salt.
+/// disclose a single attribute without revealing the private key.
 /// </summary>
 public sealed record AttributeProof(string Value, string Salt);
 
@@ -21,18 +18,11 @@ public sealed record AttributeProof(string Value, string Salt);
 /// A KYC leaf certificate: a base certificate plus parsed KYC attributes, some
 /// plain and some encrypted to the subject.
 /// </summary>
-public sealed class KycCertificate : IDisposable
+public sealed class KycCertificate : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private bool _disposed;
-
-	/// <summary>The core-module handle backing this certificate.</summary>
-	internal int Handle { get; }
-
 	private KycCertificate(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		Handle = handle;
 	}
 
 	/// <summary>Adopt an existing core-module leaf handle.</summary>
@@ -49,20 +39,20 @@ public sealed class KycCertificate : IDisposable
 	public static KycCertificateBuilder Builder(WasmRuntime runtime) => new(runtime);
 
 	/// <summary>The PEM encoding of the certificate.</summary>
-	public string Pem() => _runtime.KycCertificatePem(Handle);
+	public string Pem() => Runtime.KycCertificatePem(Handle);
 
 	/// <summary>The base certificate, as an independently owned certificate object.</summary>
 	public Certificate Base()
 	{
-		int handle = _runtime.KycCertificateBase(Handle);
-		return new(_runtime, handle);
+		int handle = Runtime.KycCertificateBase(Handle);
+		return new(Runtime, handle);
 	}
 
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
 	public bool ValidAt(DateTimeOffset moment)
 	{
 		long unixMillis = moment.ToUnixTimeMilliseconds();
-		return _runtime.KycCertificateValidAt(Handle, unixMillis);
+		return Runtime.KycCertificateValidAt(Handle, unixMillis);
 	}
 
 	/// <summary>
@@ -78,22 +68,22 @@ public sealed class KycCertificate : IDisposable
 		int[] bridges = Handles.Of(intermediates);
 		long unixMillis = moment.ToUnixTimeMilliseconds();
 
-		return _runtime.KycCertificateVerify(Handle, roots, bridges, unixMillis);
+		return Runtime.KycCertificateVerify(Handle, roots, bridges, unixMillis);
 	}
 
 	/// <summary>The KYC attributes the certificate carries.</summary>
 	public IReadOnlyList<KycAttribute> Attributes()
 	{
-		byte[] payload = _runtime.KycCertificateAttributes(Handle);
+		byte[] payload = Runtime.KycCertificateAttributes(Handle);
 		return KeetaJson.ReadList<KycAttribute>(payload);
 	}
 
 	/// <summary>A plain (unencrypted) attribute by <paramref name="name"/>.</summary>
-	public byte[] PlainAttribute(string name) => _runtime.KycCertificatePlainAttribute(Handle, name);
+	public byte[] PlainAttribute(string name) => Runtime.KycCertificatePlainAttribute(Handle, name);
 
 	/// <summary>Decrypt a sensitive attribute by <paramref name="name"/> using <paramref name="subject"/>.</summary>
 	public byte[] DecryptAttribute(string name, Account subject) =>
-		_runtime.KycCertificateDecryptAttribute(Handle, name, subject.Handle);
+		Runtime.KycCertificateDecryptAttribute(Handle, name, subject.Handle);
 
 	/// <summary>
 	/// Prove sensitive attribute <paramref name="name"/>, decrypting it with
@@ -102,7 +92,7 @@ public sealed class KycCertificate : IDisposable
 	/// </summary>
 	public AttributeProof Prove(string name, Account subject)
 	{
-		byte[] payload = _runtime.KycCertificateProve(Handle, name, subject.Handle);
+		byte[] payload = Runtime.KycCertificateProve(Handle, name, subject.Handle);
 		return JsonSerializer.Deserialize<AttributeProof>(payload, KeetaJson.Options) ?? throw new KeetaException("PROOF", "the proof payload was empty");
 	}
 
@@ -113,7 +103,7 @@ public sealed class KycCertificate : IDisposable
 	public bool ValidateProof(string name, Account subject, AttributeProof proof)
 	{
 		string proofJson = JsonSerializer.Serialize(proof, KeetaJson.Options);
-		return _runtime.KycCertificateValidateProof(Handle, name, subject.Handle, proofJson);
+		return Runtime.KycCertificateValidateProof(Handle, name, subject.Handle, proofJson);
 	}
 
 	/// <summary>
@@ -163,17 +153,7 @@ public sealed class KycCertificate : IDisposable
 		return document.RootElement.Clone();
 	}
 
-	/// <summary>Release the core-module certificate handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.KycCertificateFree(Handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.KycCertificateFree(handle);
 }
 
 /// <summary>

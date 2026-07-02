@@ -2,21 +2,13 @@ namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
 /// A Keeta account: a signer derived from a seed, or a read-only account parsed
-/// from an address. The key material lives inside the wasm core; this wrapper
-/// holds only the handle and releases it on <see cref="Dispose"/>.
+/// from an address. The key material lives inside the wasm core.
 /// </summary>
-public sealed class Account : IDisposable
+public sealed class Account : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private bool _disposed;
-
-	/// <summary>The core-module handle backing this account.</summary>
-	internal int Handle { get; }
-
 	private Account(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		Handle = handle;
 	}
 
 	/// <summary>Derive a signing account from a hex <paramref name="seed"/>.</summary>
@@ -68,35 +60,25 @@ public sealed class Account : IDisposable
 	}
 
 	/// <summary>The account's textual <c>keeta_...</c> address.</summary>
-	public string Address => _runtime.AccountAddress(Handle);
+	public string Address => Runtime.AccountAddress(Handle);
 
 	/// <summary>The account's algorithm name.</summary>
-	public string Algorithm => _runtime.AccountAlgorithm(Handle);
+	public string Algorithm => Runtime.AccountAlgorithm(Handle);
 
 	/// <summary>The account's type-prefixed public key (hex).</summary>
-	public string PublicKey => _runtime.AccountPublicKey(Handle);
+	public string PublicKey => Runtime.AccountPublicKey(Handle);
 
 	/// <summary>Sign <paramref name="message"/> with the account's private key.</summary>
-	public byte[] Sign(byte[] message) => _runtime.AccountSign(Handle, message);
+	public byte[] Sign(byte[] message) => Runtime.AccountSign(Handle, message);
 
 	/// <summary>Verify <paramref name="signature"/> over <paramref name="message"/>.</summary>
-	public bool Verify(byte[] message, byte[] signature) => _runtime.AccountVerify(Handle, message, signature);
+	public bool Verify(byte[] message, byte[] signature) => Runtime.AccountVerify(Handle, message, signature);
 
 	/// <summary>Encrypt <paramref name="plaintext"/> to the account's public key.</summary>
-	public byte[] Encrypt(byte[] plaintext) => _runtime.AccountEncrypt(Handle, plaintext);
+	public byte[] Encrypt(byte[] plaintext) => Runtime.AccountEncrypt(Handle, plaintext);
 
 	/// <summary>Decrypt <paramref name="ciphertext"/> with the account's private key.</summary>
-	public byte[] Decrypt(byte[] ciphertext) => _runtime.AccountDecrypt(Handle, ciphertext);
+	public byte[] Decrypt(byte[] ciphertext) => Runtime.AccountDecrypt(Handle, ciphertext);
 
-	/// <summary>Release the core-module account handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.AccountFree(Handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.AccountFree(handle);
 }

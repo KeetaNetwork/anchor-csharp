@@ -47,6 +47,9 @@ public sealed partial class WasmRuntime : IDisposable
 	private byte[] _pending = Array.Empty<byte>();
 	private CancellationToken _activeCancellation = CancellationToken.None;
 
+	// Debug-only leak accounting; see CountHandleAdopted/CountHandleReleased.
+	private int _outstandingHandles;
+
 	private bool _disposed;
 
 	private WasmRuntime(Func<Engine, Module> loadModule)
@@ -377,7 +380,10 @@ public sealed partial class WasmRuntime : IDisposable
 			return TakeBytes(result);
 		});
 
-	/// <summary>Release a guest handle on the dispatcher thread; a no-op once the runtime is disposed.</summary>
+	/// <summary>
+	/// Queue a guest handle release onto the dispatcher without blocking.
+	/// Safe from any thread, including the finalizer thread.
+	/// </summary>
 	private void RunFree(string export, int handle)
 	{
 		if (_disposed)
@@ -385,7 +391,31 @@ public sealed partial class WasmRuntime : IDisposable
 			return;
 		}
 
-		Run(() => Free(export, handle));
+		_dispatcher.TryPost(() => FreeQuietly(export, handle));
+	}
+
+	/// <summary>
+	/// Release one guest handle, swallowing failures: a free racing runtime
+	/// teardown (a finalizer-enqueued job draining after the store is gone)
+	/// is best-effort by design.
+	/// </summary>
+	[SuppressMessage("Design", "CA1031:Do not catch general exception types",
+		Justification = "A queued free has no caller to observe a failure, and an unhandled exception would kill the dispatcher thread.")]
+	private void FreeQuietly(string export, int handle)
+	{
+		if (_disposed)
+		{
+			return;
+		}
+
+		try
+		{
+			Free(export, handle);
+		}
+		catch (Exception)
+		{
+			// Best-effort: the runtime is tearing down and reclaims the memory.
+		}
 	}
 
 	/// <summary>Drive an export taking a client handle and one UTF-8 argument.</summary>
@@ -559,6 +589,31 @@ public sealed partial class WasmRuntime : IDisposable
 	/// <summary>Whether this runtime has been disposed.</summary>
 	internal bool IsDisposed => _disposed;
 
+	/// <summary>
+	/// The wrapper handles adopted but not yet released. Only debug builds
+	/// count, so release builds always read zero.
+	/// </summary>
+	internal int OutstandingHandles => Volatile.Read(ref _outstandingHandles);
+
+	/// <summary>Debug-only: count a wrapper adopting a core handle.</summary>
+	[Conditional("DEBUG")]
+	internal void CountHandleAdopted() => Interlocked.Increment(ref _outstandingHandles);
+
+	/// <summary>Debug-only: count a wrapper releasing its core handle.</summary>
+	[Conditional("DEBUG")]
+	internal void CountHandleReleased() => Interlocked.Decrement(ref _outstandingHandles);
+
+	/// <summary>Debug-only: flag wrappers leaked past runtime disposal.</summary>
+	[Conditional("DEBUG")]
+	private void WarnIfHandlesOutstanding()
+	{
+		int outstanding = OutstandingHandles;
+		if (outstanding > 0)
+		{
+			Debug.WriteLine($"KeetaNet.Anchor: the runtime was disposed with {outstanding} undisposed wrapper handle(s); dispose every wrapper before its runtime");
+		}
+	}
+
 	/// <summary>Reject a call made after disposal; assert dispatcher-thread confinement.</summary>
 	private void EnsureUsable()
 	{
@@ -574,6 +629,7 @@ public sealed partial class WasmRuntime : IDisposable
 			return;
 		}
 
+		WarnIfHandlesOutstanding();
 		_disposed = true;
 		_dispatcher.Run(() =>
 		{

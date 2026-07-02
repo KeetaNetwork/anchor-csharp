@@ -9,16 +9,11 @@ namespace KeetaNet.Anchor;
 /// networked method honors its <see cref="CancellationToken"/> before dispatch
 /// and during host HTTP and sleeps.
 /// </summary>
-public sealed class KycClient : IDisposable
+public sealed class KycClient : WasmObject
 {
-	private readonly WasmRuntime _runtime;
-	private readonly int _handle;
-	private bool _disposed;
-
 	private KycClient(WasmRuntime runtime, int handle)
+		: base(runtime, handle)
 	{
-		_runtime = runtime;
-		_handle = handle;
 	}
 
 	/// <summary>
@@ -38,8 +33,8 @@ public sealed class KycClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		string countriesJson = SerializeCountries(countries);
-		byte[] payload = await _runtime.KycProviders(_handle, countriesJson, cancellationToken).ConfigureAwait(false);
 
+		byte[] payload = await Runtime.KycProviders(Handle, countriesJson, cancellationToken).ConfigureAwait(false);
 		return KeetaJson.ReadList<KycProvider>(payload);
 	}
 
@@ -57,8 +52,8 @@ public sealed class KycClient : IDisposable
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
 		string countriesJson = SerializeCountries(countries);
 
-		byte[] payload = await _runtime
-			.KycCreateVerification(_handle, providerJson, countriesJson, redirect ?? "", cancellationToken)
+		byte[] payload = await Runtime
+			.KycCreateVerification(Handle, providerJson, countriesJson, redirect ?? "", cancellationToken)
 			.ConfigureAwait(false);
 
 		return ParseOutcome<Verification, VerificationOutcome>(payload, "verification", ready => new VerificationOutcome(ready, null), retry => new VerificationOutcome(null, retry));
@@ -71,8 +66,8 @@ public sealed class KycClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
-		byte[] payload = await _runtime
-			.KycGetCertificates(_handle, providerJson, id, cancellationToken)
+		byte[] payload = await Runtime
+			.KycGetCertificates(Handle, providerJson, id, cancellationToken)
 			.ConfigureAwait(false);
 
 		return ParseOutcome<Certificates, CertificatesOutcome>(payload, "certificates", ready => new CertificatesOutcome(ready, null), retry => new CertificatesOutcome(null, retry));
@@ -81,7 +76,7 @@ public sealed class KycClient : IDisposable
 	/// <summary>Parse <paramref name="provider"/>'s advertised issuer CA certificate.</summary>
 	/// <remarks>Use it as a trusted root when verifying an issued <see cref="Crypto.KycCertificate"/>.</remarks>
 	public Crypto.Certificate ProviderCertificate(KycProvider provider) =>
-		Crypto.Certificate.Parse(_runtime, provider.Ca);
+		Crypto.Certificate.Parse(Runtime, provider.Ca);
 
 	/// <summary>Read the status of verification <paramref name="id"/>.</summary>
 	public async Task<StatusOutcome> GetVerificationStatusAsync(
@@ -90,8 +85,8 @@ public sealed class KycClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
-		byte[] payload = await _runtime
-			.KycGetVerificationStatus(_handle, providerJson, id, cancellationToken)
+		byte[] payload = await Runtime
+			.KycGetVerificationStatus(Handle, providerJson, id, cancellationToken)
 			.ConfigureAwait(false);
 
 		return ParseOutcome<VerificationStatus, StatusOutcome>(payload, "status", ready => new StatusOutcome(ready, null), retry => new StatusOutcome(null, retry));
@@ -124,15 +119,5 @@ public sealed class KycClient : IDisposable
 		return ready(value.Deserialize<TReady>(KeetaJson.Options)!);
 	}
 
-	/// <summary>Release the core-module client handle.</summary>
-	public void Dispose()
-	{
-		if (_disposed)
-		{
-			return;
-		}
-
-		_disposed = true;
-		_runtime.KycFree(_handle);
-	}
+	private protected override void Release(WasmRuntime runtime, int handle) => runtime.KycFree(handle);
 }
