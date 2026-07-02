@@ -6,6 +6,7 @@ ignorePaths:
   - "**/*.wasm"
   - "**/*.lock"
   - .github/**
+  - src/KeetaNet.Anchor/Generated/**
 words:
   - KeetaNet
   - keeta
@@ -43,3 +44,9 @@ words:
   - slnx
   - sandboxed
   - cobertura
+  - ciphertext
+  - millis
+  - Millis
+  - pems
+  - dtos
+  - Oldsmar
