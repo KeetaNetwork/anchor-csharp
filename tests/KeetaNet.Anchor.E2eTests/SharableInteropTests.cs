@@ -37,13 +37,13 @@ public sealed class SharableInteropTests
 		harness.Shutdown();
 
 		using var runtime = WasmRuntime.Load();
-		using Account recipient = Account.FromSeed(runtime, E2eSeeds.Recipient, 0, algorithm);
-		using SharableCertificateAttributes opened = SharableCertificateAttributes.FromPem(runtime, pem, new[] { recipient });
+		using Account recipient = runtime.Accounts.FromSeed(E2eSeeds.Recipient, 0, algorithm);
+		using SharableCertificateAttributes opened = runtime.Sharables.FromPem(pem, new[] { recipient });
 
 		foreach (string name in Names)
 		{
 			byte[] reference = Convert.FromBase64String(referenceBuffers.GetProperty(name).GetString()!);
-			Assert.Equal(reference, opened.AttributeBuffer(name));
+			Assert.Equal(reference, opened.GetAttributeBuffer(name));
 		}
 	}
 
@@ -54,12 +54,12 @@ public sealed class SharableInteropTests
 		IReadOnlyList<AttributeCase> cases = IssueAttributes.Cases(Names);
 
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, E2eSeeds.Subject, 0, algorithm);
-		using Account issuer = Account.FromSeed(runtime, E2eSeeds.Issuer, 0, algorithm);
-		using Account recipient = Account.FromSeed(runtime, E2eSeeds.Recipient, 0, algorithm);
+		using Account subject = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, algorithm);
+		using Account issuer = runtime.Accounts.FromSeed(E2eSeeds.Issuer, 0, algorithm);
+		using Account recipient = runtime.Accounts.FromSeed(E2eSeeds.Recipient, 0, algorithm);
 
 		using KycCertificate leaf = LocalLeaf.Issue(runtime, subject, issuer, cases);
-		using SharableCertificateAttributes bundle = SharableCertificateAttributes.FromCertificate(runtime, leaf, subject, names: Names);
+		using SharableCertificateAttributes bundle = runtime.Sharables.FromCertificate(leaf, subject, names: Names);
 		bundle.GrantAccess(new[] { recipient });
 
 		using var harness = NodeHarness.Spawn("sharable");
@@ -78,7 +78,7 @@ public sealed class SharableInteropTests
 		foreach (string name in Names)
 		{
 			byte[] reference = Convert.FromBase64String(referenceBuffers.GetProperty(name).GetString()!);
-			Assert.Equal(bundle.AttributeBuffer(name), reference);
+			Assert.Equal(bundle.GetAttributeBuffer(name), reference);
 		}
 	}
 }

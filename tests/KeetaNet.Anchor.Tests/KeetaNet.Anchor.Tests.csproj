@@ -11,10 +11,12 @@
 	<ItemGroup>
 		<PackageReference Include="xunit.v3" />
 		<PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<ProjectReference Include="../../src/KeetaNet.Anchor/KeetaNet.Anchor.csproj" />
+		<ProjectReference Include="../../src/KeetaNet.Anchor.Extensions.DependencyInjection/KeetaNet.Anchor.Extensions.DependencyInjection.csproj" />
 	</ItemGroup>
 
 </Project>

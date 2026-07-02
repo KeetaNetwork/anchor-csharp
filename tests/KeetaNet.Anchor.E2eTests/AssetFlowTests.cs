@@ -21,12 +21,12 @@ public sealed class AssetFlowTests
 		using var session = AssetSession.Open();
 		(AssetMovementClient client, AssetAnchor anchor, CancellationToken cancellationToken) = session;
 
-		IReadOnlyList<AssetProvider> providers = await client.ProvidersAsync(cancellationToken);
+		IReadOnlyList<AssetProvider> providers = await client.GetProvidersAsync(cancellationToken);
 		AssetProvider provider = Assert.Single(providers);
 		Assert.Equal(anchor.ProviderId, provider.Id);
 		Assert.True(client.IsOperationSupported(provider, "simulateTransfer"));
 
-		AssetProvider? byAccount = await client.ProviderByAccountAsync(anchor.Signer, cancellationToken);
+		AssetProvider? byAccount = await client.GetProviderByAccountAsync(anchor.Signer, cancellationToken);
 		Assert.NotNull(byAccount);
 
 		var advertised = new AssetProviderSearch(anchor.Asset, EvmLocation, KeetaLocation);
@@ -47,7 +47,7 @@ public sealed class AssetFlowTests
 		(AssetMovementClient client, AssetAnchor anchor, CancellationToken cancellationToken) = session;
 		AssetProvider provider = await session.DiscoveredProviderAsync();
 
-		AssetAccountStatus status = await client.AccountStatusAsync(provider, cancellationToken);
+		AssetAccountStatus status = await client.GetAccountStatusAsync(provider, cancellationToken);
 		Assert.False(status.ActionRequired);
 
 		AssetSimulatedTransfer simulated = await client.SimulateTransferAsync(provider, PushTransfer(anchor, anchor.SendToAddress), cancellationToken);
@@ -63,7 +63,7 @@ public sealed class AssetFlowTests
 		await Assert.ThrowsAsync<KeetaException>(
 			() => client.InitiateTransferAsync(provider, PushTransfer(anchor, recipient: null), cancellationToken));
 
-		AssetTransferStatus completed = await transfer.GetStatusAsync(cancellationToken);
+		AssetTransferStatus completed = await transfer.GetTransferStatusAsync(cancellationToken);
 		Assert.Equal("123", completed.Transaction.GetProperty("id").GetString());
 		Assert.Equal("COMPLETED", completed.Transaction.GetProperty("status").GetString());
 
@@ -72,7 +72,7 @@ public sealed class AssetFlowTests
 		Assert.Equal("ACH_DEBIT", pullInstruction.GetProperty("type").GetString());
 
 		var instruction = new AssetPullInstruction("ACH_DEBIT", pullInstruction.GetProperty("pullFrom"));
-		AssetTransferStatus executed = await pull.ExecuteAsync(instruction, cancellationToken);
+		AssetTransferStatus executed = await pull.ExecuteTransferAsync(instruction, cancellationToken);
 		Assert.Equal("EXECUTED", executed.Transaction.GetProperty("status").GetString());
 
 		session.Shutdown();
@@ -85,12 +85,12 @@ public sealed class AssetFlowTests
 		(AssetMovementClient client, AssetAnchor anchor, CancellationToken cancellationToken) = session;
 		AssetProvider provider = await session.DiscoveredProviderAsync();
 
-		AssetTemplateSession templateSession = await client.InitiateForwardingTemplateAsync(
+		AssetTemplateSession templateSession = await client.InitiatePersistentForwardingTemplateAsync(
 			provider, new AssetInitiateTemplateRequest(anchor.Asset, EvmLocation), cancellationToken);
 		Assert.Equal("test-session-id", templateSession.Id);
 		Assert.Equal("link-sandbox-test-token", templateSession.Data.GetProperty("plaidLinkToken").GetString());
 
-		AssetForwardingTemplate template = await client.CreateForwardingTemplateAsync(
+		AssetForwardingTemplate template = await client.CreatePersistentForwardingTemplateAsync(
 			provider,
 			new AssetCreateTemplateRequest(Asset: anchor.Asset, Location: EvmLocation, Address: anchor.SendToAddress),
 			cancellationToken);
@@ -102,18 +102,18 @@ public sealed class AssetFlowTests
 			plaidPublicToken = "public-sandbox-token",
 			plaidAccountId = "account-1",
 		};
-		AssetForwardingTemplate completed = await client.CreateForwardingTemplateAsync(
+		AssetForwardingTemplate completed = await client.CreatePersistentForwardingTemplateAsync(
 			provider, new AssetCreateTemplateRequest(Id: templateSession.Id, Data: completionData), cancellationToken);
 		Assert.Equal("template-id", completed.Id);
 
-		AssetTemplatePage templates = await client.ListForwardingTemplatesAsync(
+		AssetTemplatePage templates = await client.ListForwardingAddressTemplatesAsync(
 			provider,
 			new AssetListTemplatesRequest(new[] { anchor.Asset }, new[] { EvmLocation }),
 			cancellationToken);
 		Assert.Single(templates.Templates);
 		Assert.Equal("1", templates.Total);
 
-		JsonElement created = await client.CreateForwardingAddressAsync(
+		JsonElement created = await client.CreatePersistentForwardingAddressAsync(
 			provider,
 			new AssetCreateAddressRequest(
 				EvmLocation,
@@ -125,7 +125,7 @@ public sealed class AssetFlowTests
 		Assert.Equal(anchor.SendToAddress, created.GetProperty("address").GetString());
 		Assert.Equal("10", created.GetProperty("fees").GetProperty("total").GetString());
 
-		JsonElement fromTemplate = await client.CreateForwardingAddressAsync(
+		JsonElement fromTemplate = await client.CreatePersistentForwardingAddressAsync(
 			provider,
 			new AssetCreateAddressRequest(EvmLocation, anchor.Asset, PersistentAddressTemplateId: template.Id),
 			cancellationToken);
@@ -150,11 +150,11 @@ public sealed class AssetFlowTests
 		JsonElement transaction = Assert.Single(transactions.Transactions);
 		Assert.Equal("123", transaction.GetProperty("id").GetString());
 
-		await client.DeactivateForwardingTemplateAsync(provider, template.Id, cancellationToken);
-		await client.DeactivateForwardingAddressAsync(provider, template.Id, cancellationToken);
+		await client.DeactivatePersistentForwardingTemplateAsync(provider, template.Id, cancellationToken);
+		await client.DeactivatePersistentForwardingAddressAsync(provider, template.Id, cancellationToken);
 
 		await Assert.ThrowsAsync<KeetaException>(
-			() => client.DeactivateForwardingTemplateAsync(provider, "does-not-exist", cancellationToken));
+			() => client.DeactivatePersistentForwardingTemplateAsync(provider, "does-not-exist", cancellationToken));
 
 		// An operation the provider does not advertise must surface a typed
 		// error before any request leaves the client.
@@ -175,17 +175,17 @@ public sealed class AssetFlowTests
 		(AssetMovementClient client, _, CancellationToken cancellationToken) = session;
 		AssetProvider provider = await session.DiscoveredProviderAsync();
 
-		AssetShareKycOutcome settled = await client.ShareKycAsync(
+		AssetShareKycOutcome settled = await client.ShareKycAttributesAsync(
 			provider, new AssetShareKycRequest("exported-attributes"), cancellationToken);
 		Assert.False(settled.IsPending);
 
-		AssetShareKycOutcome withoutPolling = await client.ShareKycAndWaitAsync(
+		AssetShareKycOutcome withoutPolling = await client.ShareKycAttributesAndWaitAsync(
 			provider, new AssetShareKycRequest("exported-attributes"), cancellationToken: cancellationToken);
 		Assert.False(withoutPolling.IsPending);
 
 		// The promise route reports pending (202 + Retry-After) for the first
 		// two polls and settles on the third.
-		AssetShareKycOutcome polled = await client.ShareKycAndWaitAsync(
+		AssetShareKycOutcome polled = await client.ShareKycAttributesAndWaitAsync(
 			provider,
 			new AssetShareKycRequest("promise-flow"),
 			pollInterval: TimeSpan.FromMilliseconds(1),
@@ -194,7 +194,7 @@ public sealed class AssetFlowTests
 		Assert.False(polled.IsPending);
 
 		await Assert.ThrowsAsync<KeetaException>(
-			() => client.ShareKycAndWaitAsync(
+			() => client.ShareKycAttributesAndWaitAsync(
 				provider,
 				new AssetShareKycRequest("promise-stall"),
 				pollInterval: TimeSpan.FromSeconds(1),

@@ -23,17 +23,17 @@ public sealed class KycFlowTests
 		KycAnchor anchor = KycAnchor.Start(harness);
 
 		using var runtime = WasmRuntime.Load();
-		using Account signer = Account.FromSeed(runtime, E2eSeeds.Caller, 0, algorithm);
-		using KycClient client = KycClient.WithAccount(runtime, anchor.Api, anchor.Root, signer);
+		using Account signer = runtime.Accounts.FromSeed(E2eSeeds.Caller, 0, algorithm);
+		using KycClient client = runtime.CreateKycClient(anchor.Api, anchor.Root, signer);
 
-		IReadOnlyList<KycProvider> providers = await client.ProvidersAsync(Countries, cancellationToken);
+		IReadOnlyList<KycProvider> providers = await client.GetProvidersAsync(Countries, cancellationToken);
 		KycProvider provider = Assert.Single(providers);
 		Assert.Equal(anchor.ProviderId, provider.Id);
 
-		using CryptoCertificate ca = client.ProviderCertificate(provider);
+		using CryptoCertificate ca = client.GetCA(provider);
 		Assert.NotEmpty(ca.SubjectPublicKey);
 
-		VerificationOutcome created = await client.CreateVerificationAsync(provider, Countries, cancellationToken: cancellationToken);
+		VerificationOutcome created = await client.StartVerificationAsync(provider, Countries, cancellationToken: cancellationToken);
 		Assert.NotNull(created.Ready);
 		Verification verification = created.Ready!;
 		Assert.NotEmpty(verification.Id);
@@ -42,7 +42,7 @@ public sealed class KycFlowTests
 
 		// A redirect URL rides the signed create body; the server must accept
 		// the extra field and still assign a verification.
-		VerificationOutcome redirected = await client.CreateVerificationAsync(provider, Countries, "https://example.test/done", cancellationToken);
+		VerificationOutcome redirected = await client.StartVerificationAsync(provider, Countries, "https://example.test/done", cancellationToken);
 		Assert.NotNull(redirected.Ready);
 		Assert.NotEmpty(redirected.Ready!.Id);
 

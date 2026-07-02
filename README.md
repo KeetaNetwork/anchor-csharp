@@ -7,6 +7,7 @@ C# SDK for the KeetaNet anchor. The client logic runs inside a sandboxed WebAsse
 | Package | Description |
 | --- | --- |
 | `KeetaNet.Anchor` | KYC and asset-movement clients, crypto, certificates, and containers over the anchor wasm core. |
+| `KeetaNet.Anchor.Extensions.DependencyInjection` | `Microsoft.Extensions.DependencyInjection` integration: registers the shared runtime singleton. |
 
 ## Requirements
 
@@ -29,8 +30,8 @@ Use the `Makefile`, not raw `dotnet`, for every task:
 | `make test` | Run all tests: unit + e2e against the live TypeScript anchor |
 | `make node-harness` | Install + build the TypeScript interop harnesses |
 | `make coverage` | Run unit tests with code coverage |
-| `make lint` | Verify formatting, spelling, and the harness lint |
-| `make format` | Apply formatting fixes |
+| `make do-lint` | Lint with formatting fixes (C#, spelling, harness) |
+| `make do-lint-ci` | Lint for CI (check only, no fixes) |
 | `make pack` | Produce the NuGet package |
 | `make wasm` | Build the P1 wasm core from the pinned crates.io release |
 
@@ -38,7 +39,7 @@ Use the `Makefile`, not raw `dotnet`, for every task:
 
 ### The Runtime
 
-Everything starts from a `WasmRuntime`, which loads the embedded wasm core and owns the dispatcher thread all calls serialize onto. Create one per application and dispose it last: every object below borrows it.
+Everything starts from a `WasmRuntime`, which loads the embedded wasm core and owns the dispatcher thread all calls serialize onto. Create one per application and dispose it last: every object below is created from its factories and borrows it.
 
 The runtime is thread-safe. Non-network operations (crypto, certificates, containers) dispatch synchronously. Networked client operations are `async`, accept a `CancellationToken`, and honor it before dispatch and during host HTTP and sleeps.
 
@@ -49,7 +50,25 @@ using KeetaNet.Anchor.Crypto;
 using var runtime = WasmRuntime.Load();
 ```
 
-Every handle-backed type (`Account`, certificates, containers, clients) implements `IDisposable`. Wrap them in `using` and dispose them before the runtime.
+The runtime exposes one factory per domain — `Accounts`, `Certificates`, `KycCertificates`, `Containers`, `Sharables` — plus `CreateKycClient` and `CreateAssetMovementClient` for the networked clients. Every handle-backed object they create implements `IDisposable`. Wrap them in `using` and dispose them before the runtime.
+
+In an application using `Microsoft.Extensions.DependencyInjection`, register the runtime once instead of threading it around; the container owns its disposal:
+
+```csharp
+// Program.cs — requires the KeetaNet.Anchor.Extensions.DependencyInjection package.
+builder.Services.AddKeetaNetAnchor();
+
+// Any service: inject the singleton and create what you need per use.
+public sealed class Onboarding(WasmRuntime runtime)
+{
+	public string NewSignerAddress()
+	{
+		string seed = runtime.Accounts.GenerateRandomSeed();
+		using Account signer = runtime.Accounts.FromSeed(seed, index: 0, algorithm: "ed25519");
+		return signer.Address;
+	}
+}
+```
 
 ### Accounts
 
@@ -57,8 +76,8 @@ An `Account` is a signer derived from a seed, private key, or BIP39 passphrase, 
 
 ```csharp
 // Derive a signer from a fresh seed.
-string seed = Account.GenerateSeed(runtime);
-using Account signer = Account.FromSeed(runtime, seed, index: 0, algorithm: "ed25519");
+string seed = runtime.Accounts.GenerateRandomSeed();
+using Account signer = runtime.Accounts.FromSeed(seed, index: 0, algorithm: "ed25519");
 
 Console.WriteLine(signer.Address);   // keeta_...
 Console.WriteLine(signer.PublicKey); // type-prefixed hex
@@ -73,7 +92,7 @@ byte[] ciphertext = signer.Encrypt("for your eyes"u8.ToArray());
 byte[] plaintext = signer.Decrypt(ciphertext);
 
 // A read-only account verifies and encrypts but cannot sign or decrypt.
-using Account watcher = Account.FromAddress(runtime, signer.Address);
+using Account watcher = runtime.Accounts.FromAccount(signer.Address);
 ```
 
 ### KYC Verification
@@ -83,14 +102,14 @@ using Account watcher = Account.FromAddress(runtime, signer.Address);
 Provider results use the pending-or-ready shape: `Ready` carries the value, otherwise `RetryAfterMs` says when to ask again.
 
 ```csharp
-using KycClient kyc = KycClient.WithAccount(runtime, nodeUrl, root, signer);
+using KycClient kyc = runtime.CreateKycClient(nodeUrl, root, signer);
 
 string[] countries = { "US" };
-IReadOnlyList<KycProvider> providers = await kyc.ProvidersAsync(countries, cancellationToken);
+IReadOnlyList<KycProvider> providers = await kyc.GetProvidersAsync(countries, cancellationToken);
 KycProvider provider = providers[0];
 
 // Start a verification. The user completes it in a browser at WebUrl.
-VerificationOutcome created = await kyc.CreateVerificationAsync(provider, countries, cancellationToken: cancellationToken);
+VerificationOutcome created = await kyc.StartVerificationAsync(provider, countries, cancellationToken: cancellationToken);
 Verification verification = created.Ready!;
 Console.WriteLine(verification.WebUrl);
 Console.WriteLine(verification.ExpectedCost.Token);
@@ -109,8 +128,8 @@ string leafPem = issued.Results[0].Value;
 A `KycCertificate` is an issued leaf: a base X.509 certificate plus KYC attributes, some plain and some encrypted to the subject. Verify it against the provider's CA, then read attributes with the subject account.
 
 ```csharp
-using KycCertificate leaf = KycCertificate.Parse(runtime, leafPem);
-using Certificate providerCa = kyc.ProviderCertificate(provider);
+using KycCertificate leaf = runtime.KycCertificates.Parse(leafPem);
+using Certificate providerCa = kyc.GetCA(provider);
 
 bool trusted = leaf.Verify(
 	trustedRoots: new[] { providerCa },
@@ -118,29 +137,31 @@ bool trusted = leaf.Verify(
 	moment: DateTimeOffset.UtcNow);
 
 // List what the leaf carries.
-foreach (KycAttribute attribute in leaf.Attributes())
+foreach (string name in leaf.GetAttributeNames())
 {
-	Console.WriteLine($"{attribute.Name} (sensitive: {attribute.Sensitive})");
+	Console.WriteLine(name);
 }
 
-// Scalars and dates decode as text; structured attributes decode as JSON.
+// GetAttributeBuffer returns the undecoded semantic bytes. GetAttribute wraps
+// them in a typed box; pick the accessor matching the attribute's shape.
 // Sensitive attributes decrypt with the subject account; plain ones use the
 // overloads without an account.
-string fullName = leaf.GetText("fullName", subject);
-string birthDate = leaf.GetText("dateOfBirth", subject); // ISO-8601 timestamp
-JsonElement address = leaf.GetJson("address", subject);
+byte[] rawEmail = leaf.GetAttributeBuffer("email", subject);
+string fullName = leaf.GetAttribute("fullName", subject).AsText();
+DateTimeOffset birthDate = leaf.GetAttribute("dateOfBirth", subject).AsTimestamp();
+JsonElement address = leaf.GetAttribute("address", subject).AsJson();
 ```
 
 ### Selective Disclosure with Proofs
 
-A holder can attest to one sensitive attribute without revealing the private key. `Prove` decrypts the attribute and produces an `AttributeProof`. Anyone holding the leaf validates it with only the subject's public key.
+A holder can attest to one sensitive attribute without revealing the private key. `GetProof` decrypts the attribute and produces an `AttributeProof`. Anyone holding the leaf validates it with only the subject's public key.
 
 ```csharp
 // Holder: decrypt and prove one attribute.
-AttributeProof proof = leaf.Prove("email", subject);
+AttributeProof proof = leaf.GetProof("email", subject);
 
 // Verifier: a read-only subject account suffices.
-using Account subjectPublic = Account.FromAddress(runtime, subjectAddress);
+using Account subjectPublic = runtime.Accounts.FromAccount(subjectAddress);
 bool attested = leaf.ValidateProof("email", subjectPublic, proof);
 ```
 
@@ -152,7 +173,7 @@ bool attested = leaf.ValidateProof("email", subjectPublic, proof);
 var validFrom = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
 var validTo = validFrom.AddYears(1);
 
-using KycCertificate issued = KycCertificate.Builder(runtime)
+using KycCertificate issued = runtime.KycCertificates.Builder()
 	.Subject(subject)
 	.Issuer(issuer)
 	.IssuerName("Example CA")
@@ -160,9 +181,9 @@ using KycCertificate issued = KycCertificate.Builder(runtime)
 	.Validity(validFrom, validTo)
 	.SetAttribute("fullName", sensitive: true, "Jane Doe")
 	.SetAttribute("dateOfBirth", sensitive: true, new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero))
-	.Issue();
+	.Build();
 
-string pem = issued.Pem();
+string pem = issued.ToPem();
 ```
 
 ### Sharable Attribute Bundles
@@ -171,18 +192,18 @@ string pem = issued.Pem();
 
 ```csharp
 // Subject: disclose two attributes and grant the recipient.
-using SharableCertificateAttributes bundle = SharableCertificateAttributes.FromCertificate(
-	runtime, leaf, subject, names: new[] { "email", "fullName" });
+using SharableCertificateAttributes bundle = runtime.Sharables.FromCertificate(
+	leaf, subject, names: new[] { "email", "fullName" });
 bundle.GrantAccess(new[] { recipient });
 string envelope = bundle.ToPem();
 
 // Recipient: open with their own account and read the disclosed values.
 using SharableCertificateAttributes opened =
-	SharableCertificateAttributes.FromPem(runtime, envelope, new[] { recipient });
+	runtime.Sharables.FromPem(envelope, new[] { recipient });
 
-IReadOnlyList<string> disclosed = opened.AttributeNames();
-byte[]? email = opened.AttributeBuffer("email"); // null when not disclosed
-using KycCertificate embeddedLeaf = opened.LeafCertificate();
+IReadOnlyList<string> disclosed = opened.GetAttributeNames();
+byte[]? email = opened.GetAttributeBuffer("email"); // null when not disclosed
+using KycCertificate embeddedLeaf = opened.GetCertificate();
 ```
 
 ### Encrypted Containers
@@ -193,15 +214,15 @@ using KycCertificate embeddedLeaf = opened.LeafCertificate();
 byte[] payload = "the payload"u8.ToArray();
 
 // Seal to the recipient and sign as the sender.
-using EncryptedContainer container = EncryptedContainer.FromPlaintext(
-	runtime, payload, principals: new[] { recipient }, signer: signer);
-byte[] blob = container.Encoded();
+using EncryptedContainer container = runtime.Containers.FromPlaintext(
+	payload, principals: new[] { recipient }, signer: signer);
+byte[] blob = container.GetEncoded();
 
 // Recipient: open, verify, and identify the signer.
-using EncryptedContainer opened = EncryptedContainer.FromEncrypted(runtime, blob, new[] { recipient });
-byte[] received = opened.Plaintext();
+using EncryptedContainer opened = runtime.Containers.FromEncrypted(blob, new[] { recipient });
+byte[] received = opened.GetPlaintext();
 bool signatureValid = opened.VerifySignature();
-byte[]? signerKey = opened.SigningAccount(); // type-prefixed public key, null when unsigned
+byte[]? signerKey = opened.GetSigningAccount(); // type-prefixed public key, null when unsigned
 ```
 
 ### Asset Movement
@@ -209,16 +230,16 @@ byte[]? signerKey = opened.SigningAccount(); // type-prefixed public key, null w
 `AssetMovementClient` discovers asset-movement providers and drives transfers, persistent forwarding, and KYC sharing. Simulated and initiated transfers return fluent objects bound to their provider and id.
 
 ```csharp
-using AssetMovementClient assets = AssetMovementClient.WithAccount(runtime, nodeUrl, root, signer);
+using AssetMovementClient assets = runtime.CreateAssetMovementClient(nodeUrl, root, signer);
 
 // Discovery: all providers, by id, by signer account, or by transfer shape.
-IReadOnlyList<AssetProvider> providers = await assets.ProvidersAsync(cancellationToken);
+IReadOnlyList<AssetProvider> providers = await assets.GetProvidersAsync(cancellationToken);
 var search = new AssetProviderSearch(Asset: asset, From: "chain:evm:100", To: "chain:keeta:100");
 IReadOnlyList<AssetProvider> capable = await assets.GetProvidersForTransferAsync(search, cancellationToken);
 AssetProvider provider = capable[0];
 
 // Check the signer's readiness before transacting.
-AssetAccountStatus account = await assets.AccountStatusAsync(provider, cancellationToken);
+AssetAccountStatus account = await assets.GetAccountStatusAsync(provider, cancellationToken);
 
 // Push transfer: simulate first, then promote the simulation.
 var request = new AssetTransferRequest(
@@ -228,15 +249,15 @@ var request = new AssetTransferRequest(
 	Value: "100");
 AssetSimulatedTransfer simulated = await assets.SimulateTransferAsync(provider, request, cancellationToken);
 AssetTransfer transfer = await simulated.CreateTransferAsync(cancellationToken: cancellationToken);
-AssetTransferStatus status = await transfer.GetStatusAsync(cancellationToken);
+AssetTransferStatus status = await transfer.GetTransferStatusAsync(cancellationToken);
 
 // Pull transfer (fiat rails): initiate, pick an instruction, execute.
 AssetTransfer pull = await assets.InitiateTransferAsync(provider, pullRequest, cancellationToken);
 var instruction = new AssetPullInstruction("ACH_DEBIT", pull.InstructionChoices[0].GetProperty("pullFrom"));
-AssetTransferStatus executed = await pull.ExecuteAsync(instruction, cancellationToken);
+AssetTransferStatus executed = await pull.ExecuteTransferAsync(instruction, cancellationToken);
 
 // Share KYC attributes; a pending outcome polls its promise URL inside the core.
-AssetShareKycOutcome shared = await assets.ShareKycAndWaitAsync(
+AssetShareKycOutcome shared = await assets.ShareKycAttributesAndWaitAsync(
 	provider,
 	new AssetShareKycRequest(exportedAttributes),
 	pollInterval: TimeSpan.FromSeconds(1),
@@ -244,7 +265,7 @@ AssetShareKycOutcome shared = await assets.ShareKycAndWaitAsync(
 	cancellationToken: cancellationToken);
 ```
 
-Persistent forwarding follows the same pattern: `InitiateForwardingTemplateAsync` / `CreateForwardingTemplateAsync` / `CreateForwardingAddressAsync` create, the `List*Async` methods page, and the `Deactivate*Async` methods retire.
+Persistent forwarding follows the same pattern: `InitiatePersistentForwardingTemplateAsync` / `CreatePersistentForwardingTemplateAsync` / `CreatePersistentForwardingAddressAsync` create, the `List*Async` methods page, and the `Deactivate*Async` methods retire.
 
 ### Errors
 

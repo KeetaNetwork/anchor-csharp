@@ -14,10 +14,10 @@ public sealed class ProveTests
 	public void ProofValidatesForItsAttributeOnly(string subjectAlgorithm)
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, TestSeeds.Subject, 0, subjectAlgorithm);
-		using Account issuer = Account.FromSeed(runtime, TestSeeds.Issuer, 0, "ecdsa_secp256k1");
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, subjectAlgorithm);
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, "ecdsa_secp256k1");
 
-		using KycCertificate leaf = KycCertificate.Builder(runtime)
+		using KycCertificate leaf = runtime.KycCertificates.Builder()
 			.Subject(subject)
 			.Issuer(issuer)
 			.SubjectName("Subject")
@@ -26,14 +26,14 @@ public sealed class ProveTests
 			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
 			.SetAttribute("email", sensitive: true, "user@example.com")
 			.SetAttribute("fullName", sensitive: true, "Test User")
-			.Issue();
+			.Build();
 
-		AttributeProof proof = leaf.Prove("email", subject);
+		AttributeProof proof = leaf.GetProof("email", subject);
 		Assert.NotEmpty(proof.Value);
 		Assert.NotEmpty(proof.Salt);
 		Assert.True(leaf.ValidateProof("email", subject, proof));
 
-		AttributeProof other = leaf.Prove("fullName", subject);
+		AttributeProof other = leaf.GetProof("fullName", subject);
 		Assert.False(leaf.ValidateProof("email", subject, other));
 	}
 }

@@ -17,10 +17,12 @@ public sealed class LifecycleTests
 	[Fact]
 	[SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP016:Don't use disposed instance",
 		Justification = "Use after dispose is exactly the behavior under test; it must throw ObjectDisposedException.")]
+	[SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP017:Prefer using",
+		Justification = "Explicit Dispose is the behavior under test.")]
 	public void DisposedWrapperRefusesUse()
 	{
 		using var runtime = WasmRuntime.Load();
-		Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
+		Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
 
 		account.Dispose();
 
@@ -36,7 +38,7 @@ public sealed class LifecycleTests
 	public void DoubleDisposeIsIdempotent()
 	{
 		var runtime = WasmRuntime.Load();
-		Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
+		Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
 
 		account.Dispose();
 		account.Dispose();
@@ -52,7 +54,7 @@ public sealed class LifecycleTests
 	public void WrapperOutlivingRuntimeStaysSafe()
 	{
 		var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
 
 		runtime.Dispose();
 
@@ -64,13 +66,13 @@ public sealed class LifecycleTests
 	public async Task ClientOutlivingRuntimeRefusesDispatch()
 	{
 		var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
-		using KycClient client = KycClient.WithAccount(runtime, "http://127.0.0.1:1", account.Address, account);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
+		using KycClient client = runtime.CreateKycClient("http://127.0.0.1:1", account.Address, account);
 
 		runtime.Dispose();
 
 		await Assert.ThrowsAsync<ObjectDisposedException>(
-			() => client.ProvidersAsync(Countries, TestContext.Current.CancellationToken));
+			() => client.GetProvidersAsync(Countries, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]
@@ -88,7 +90,7 @@ public sealed class LifecycleTests
 #endif
 
 		// The queued backstop free must leave the dispatcher healthy.
-		using Account survivor = Account.FromSeed(runtime, TestSeeds.Subject, 1, "ed25519");
+		using Account survivor = runtime.Accounts.FromSeed(TestSeeds.Subject, 1, "ed25519");
 		Assert.StartsWith("keeta_", survivor.Address, StringComparison.Ordinal);
 	}
 
@@ -97,7 +99,7 @@ public sealed class LifecycleTests
 	public void LeakCounterFlagsForgottenDispose()
 	{
 		using var runtime = WasmRuntime.Load();
-		Account tracked = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
+		Account tracked = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
 
 		Assert.Equal(1, runtime.OutstandingHandles);
 
@@ -117,7 +119,7 @@ public sealed class LifecycleTests
 		Justification = "Deliberately leaked to exercise the finalizer backstop.")]
 	private static void LeakAccount(WasmRuntime runtime)
 	{
-		Account leaked = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
+		Account leaked = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
 		Assert.StartsWith("keeta_", leaked.Address, StringComparison.Ordinal);
 	}
 }

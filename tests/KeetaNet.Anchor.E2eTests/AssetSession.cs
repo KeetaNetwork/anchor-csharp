@@ -40,8 +40,8 @@ internal sealed class AssetSession : IDisposable
 		{
 			AssetAnchor anchor = AssetAnchor.Start(harness);
 			WasmRuntime runtime = WasmRuntime.Load();
-			Account signer = Account.FromSeed(runtime, E2eSeeds.Caller, 0, E2eSeeds.Secp256k1);
-			AssetMovementClient client = AssetMovementClient.WithAccount(runtime, anchor.Api, anchor.Root, signer);
+			Account signer = runtime.Accounts.FromSeed(E2eSeeds.Caller, 0, E2eSeeds.Secp256k1);
+			AssetMovementClient client = runtime.CreateAssetMovementClient(anchor.Api, anchor.Root, signer);
 
 			return new AssetSession(harness, anchor, runtime, signer, client);
 		}
@@ -65,7 +65,7 @@ internal sealed class AssetSession : IDisposable
 	/// <summary>The single provider the running anchor publishes.</summary>
 	public async Task<AssetProvider> DiscoveredProviderAsync()
 	{
-		AssetProvider? provider = await Client.ProviderByIdAsync(Anchor.ProviderId, CancellationToken);
+		AssetProvider? provider = await Client.GetProviderByIdAsync(Anchor.ProviderId, CancellationToken);
 		Assert.NotNull(provider);
 
 		return provider!;

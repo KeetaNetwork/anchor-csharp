@@ -17,32 +17,33 @@ public sealed class AssetMovementClient : WasmObject
 	}
 
 	/// <summary>
-	/// Build a client signed by an existing <paramref name="account"/> from the
-	/// <c>crypto</c> surface, resolving providers from <paramref name="root"/>'s
-	/// on-chain service metadata read via the node API at <paramref name="nodeUrl"/>.
+	/// Build a client signed by an existing <paramref name="account"/>, resolving
+	/// providers from <paramref name="root"/>'s on-chain service metadata read via
+	/// the node API at <paramref name="nodeUrl"/>. Reached through
+	/// <see cref="WasmRuntime.CreateAssetMovementClient"/>.
 	/// </summary>
-	public static AssetMovementClient WithAccount(WasmRuntime runtime, string nodeUrl, string root, Crypto.Account account)
+	internal static AssetMovementClient WithAccount(WasmRuntime runtime, string nodeUrl, string root, Crypto.Account account)
 	{
 		int handle = runtime.AssetWithAccount(nodeUrl, root, account.Handle);
 		return new AssetMovementClient(runtime, handle);
 	}
 
 	/// <summary>Every advertised provider.</summary>
-	public async Task<IReadOnlyList<AssetProvider>> ProvidersAsync(CancellationToken cancellationToken = default)
+	public async Task<IReadOnlyList<AssetProvider>> GetProvidersAsync(CancellationToken cancellationToken = default)
 	{
 		byte[] payload = await Runtime.AssetProviders(Handle, cancellationToken).ConfigureAwait(false);
 		return KeetaJson.ReadList<AssetProvider>(payload);
 	}
 
 	/// <summary>The provider with <paramref name="id"/>, or null when none advertises it.</summary>
-	public async Task<AssetProvider?> ProviderByIdAsync(string id, CancellationToken cancellationToken = default)
+	public async Task<AssetProvider?> GetProviderByIdAsync(string id, CancellationToken cancellationToken = default)
 	{
 		byte[] payload = await Runtime.AssetProviderById(Handle, id, cancellationToken).ConfigureAwait(false);
 		return ParseOptionalProvider(payload);
 	}
 
 	/// <summary>The provider signed by <paramref name="account"/>, or null when absent.</summary>
-	public async Task<AssetProvider?> ProviderByAccountAsync(string account, CancellationToken cancellationToken = default)
+	public async Task<AssetProvider?> GetProviderByAccountAsync(string account, CancellationToken cancellationToken = default)
 	{
 		byte[] payload = await Runtime.AssetProviderByAccount(Handle, account, cancellationToken).ConfigureAwait(false);
 		return ParseOptionalProvider(payload);
@@ -83,7 +84,7 @@ public sealed class AssetMovementClient : WasmObject
 		string id,
 		CancellationToken cancellationToken = default)
 	{
-		AssetProvider? provider = await ProviderByIdAsync(id, cancellationToken).ConfigureAwait(false);
+		AssetProvider? provider = await GetProviderByIdAsync(id, cancellationToken).ConfigureAwait(false);
 		return provider?.Legal;
 	}
 
@@ -143,14 +144,14 @@ public sealed class AssetMovementClient : WasmObject
 		ReadOperationAsync<AssetTransferStatus>(Runtime.AssetExecuteTransfer, provider, request, cancellationToken);
 
 	/// <summary>Read the status of transfer <paramref name="id"/>.</summary>
-	public Task<AssetTransferStatus> TransferStatusAsync(
+	public Task<AssetTransferStatus> GetTransferStatusAsync(
 		AssetProvider provider,
 		string id,
 		CancellationToken cancellationToken = default) =>
 		ReadOperationForIdAsync<AssetTransferStatus>(Runtime.AssetTransferStatus, provider, id, cancellationToken);
 
 	/// <summary>Read whether the signer's account is ready to use this provider.</summary>
-	public async Task<AssetAccountStatus> AccountStatusAsync(
+	public async Task<AssetAccountStatus> GetAccountStatusAsync(
 		AssetProvider provider,
 		CancellationToken cancellationToken = default)
 	{
@@ -161,28 +162,28 @@ public sealed class AssetMovementClient : WasmObject
 	}
 
 	/// <summary>Open a persistent-forwarding template session.</summary>
-	public Task<AssetTemplateSession> InitiateForwardingTemplateAsync(
+	public Task<AssetTemplateSession> InitiatePersistentForwardingTemplateAsync(
 		AssetProvider provider,
 		AssetInitiateTemplateRequest request,
 		CancellationToken cancellationToken = default) =>
 		ReadOperationAsync<AssetTemplateSession>(Runtime.AssetInitiateForwardingTemplate, provider, request, cancellationToken);
 
 	/// <summary>Create a persistent-forwarding template.</summary>
-	public Task<AssetForwardingTemplate> CreateForwardingTemplateAsync(
+	public Task<AssetForwardingTemplate> CreatePersistentForwardingTemplateAsync(
 		AssetProvider provider,
 		AssetCreateTemplateRequest request,
 		CancellationToken cancellationToken = default) =>
 		ReadOperationAsync<AssetForwardingTemplate>(Runtime.AssetCreateForwardingTemplate, provider, request, cancellationToken);
 
 	/// <summary>List persistent-forwarding templates.</summary>
-	public Task<AssetTemplatePage> ListForwardingTemplatesAsync(
+	public Task<AssetTemplatePage> ListForwardingAddressTemplatesAsync(
 		AssetProvider provider,
 		AssetListTemplatesRequest request,
 		CancellationToken cancellationToken = default) =>
 		ReadOperationAsync<AssetTemplatePage>(Runtime.AssetListForwardingTemplates, provider, request, cancellationToken);
 
 	/// <summary>Create a persistent-forwarding address, returning its (obfuscated) details.</summary>
-	public Task<JsonElement> CreateForwardingAddressAsync(
+	public Task<JsonElement> CreatePersistentForwardingAddressAsync(
 		AssetProvider provider,
 		AssetCreateAddressRequest request,
 		CancellationToken cancellationToken = default) =>
@@ -196,14 +197,14 @@ public sealed class AssetMovementClient : WasmObject
 		ReadOperationAsync<AssetAddressPage>(Runtime.AssetListForwardingAddresses, provider, request, cancellationToken);
 
 	/// <summary>Deactivate a persistent-forwarding template by id.</summary>
-	public Task DeactivateForwardingTemplateAsync(
+	public Task DeactivatePersistentForwardingTemplateAsync(
 		AssetProvider provider,
 		string id,
 		CancellationToken cancellationToken = default) =>
 		RunOperationForIdAsync(Runtime.AssetDeactivateForwardingTemplate, provider, id, cancellationToken);
 
 	/// <summary>Deactivate a persistent-forwarding address by id.</summary>
-	public Task DeactivateForwardingAddressAsync(
+	public Task DeactivatePersistentForwardingAddressAsync(
 		AssetProvider provider,
 		string id,
 		CancellationToken cancellationToken = default) =>
@@ -219,9 +220,9 @@ public sealed class AssetMovementClient : WasmObject
 	/// <summary>
 	/// Share KYC attributes with the provider, returning the outcome verbatim.
 	/// A pending outcome carries the promise URL the caller must poll; use
-	/// <see cref="ShareKycAndWaitAsync"/> to poll it automatically.
+	/// <see cref="ShareKycAttributesAndWaitAsync"/> to poll it automatically.
 	/// </summary>
-	public Task<AssetShareKycOutcome> ShareKycAsync(
+	public Task<AssetShareKycOutcome> ShareKycAttributesAsync(
 		AssetProvider provider,
 		AssetShareKycRequest request,
 		CancellationToken cancellationToken = default) =>
@@ -231,7 +232,7 @@ public sealed class AssetMovementClient : WasmObject
 	/// Share KYC attributes and, when the outcome is pending with a promise URL,
 	/// poll that URL inside the core until it resolves.
 	/// </summary>
-	public async Task<AssetShareKycOutcome> ShareKycAndWaitAsync(
+	public async Task<AssetShareKycOutcome> ShareKycAttributesAndWaitAsync(
 		AssetProvider provider,
 		AssetShareKycRequest request,
 		TimeSpan? pollInterval = null,

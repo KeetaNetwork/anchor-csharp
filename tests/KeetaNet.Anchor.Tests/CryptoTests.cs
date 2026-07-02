@@ -18,7 +18,7 @@ public sealed class CryptoTests
 	public void AccountDerivesSignsAndVerifies(string algorithm)
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, algorithm);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, algorithm);
 
 		Assert.Equal(algorithm, account.Algorithm);
 		Assert.StartsWith("keeta_", account.Address, StringComparison.Ordinal);
@@ -37,7 +37,7 @@ public sealed class CryptoTests
 	public void EncryptToSelfRoundTrips(string algorithm)
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, algorithm);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, algorithm);
 
 		byte[] secret = Encoding.UTF8.GetBytes("for my eyes only");
 		byte[] ciphertext = account.Encrypt(secret);
@@ -50,10 +50,10 @@ public sealed class CryptoTests
 	{
 		using var runtime = WasmRuntime.Load();
 
-		IReadOnlyList<string> mnemonic = Account.GeneratePassphrase(runtime);
+		IReadOnlyList<string> mnemonic = runtime.Accounts.GeneratePassphrase();
 		Assert.True(mnemonic.Count is 12 or 24);
 
-		using Account account = Account.FromPassphrase(runtime, mnemonic, 0, "ed25519");
+		using Account account = runtime.Accounts.FromPassphrase(mnemonic, 0, "ed25519");
 		byte[] message = Encoding.UTF8.GetBytes("mnemonic signer");
 		byte[] signature = account.Sign(message);
 		Assert.True(account.Verify(message, signature));
@@ -63,14 +63,14 @@ public sealed class CryptoTests
 	public void FixtureCertificateExposesItsFields()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
-		using CryptoCertificate certificate = CryptoCertificate.Parse(runtime, KycFixture.Pem);
+		using Account subject = runtime.Accounts.FromSeed(KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
+		using CryptoCertificate certificate = runtime.Certificates.Parse(KycFixture.Pem);
 
-		Assert.Contains("BEGIN CERTIFICATE", certificate.Pem(), StringComparison.Ordinal);
-		Assert.True(certificate.ValidAt(KycFixture.ValidAt));
+		Assert.Contains("BEGIN CERTIFICATE", certificate.ToPem(), StringComparison.Ordinal);
+		Assert.True(certificate.IsValidAt(KycFixture.ValidAt));
 
 		DateTimeOffset epoch = DateTimeOffset.FromUnixTimeSeconds(0);
-		Assert.False(certificate.ValidAt(epoch));
+		Assert.False(certificate.IsValidAt(epoch));
 
 		Assert.Contains("Test Subject", certificate.Subject, StringComparison.Ordinal);
 		Assert.Contains("Test Issuer", certificate.Issuer, StringComparison.Ordinal);
@@ -84,23 +84,24 @@ public sealed class CryptoTests
 	public void FixtureKycCertificateReadsAndDecryptsAttributes()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
-		using KycCertificate kyc = KycCertificate.Parse(runtime, KycFixture.Pem);
+		using Account subject = runtime.Accounts.FromSeed(KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
+		using KycCertificate kyc = runtime.KycCertificates.Parse(KycFixture.Pem);
 
-		IReadOnlyList<KycAttribute> attributes = kyc.Attributes();
-		Assert.Equal(3, attributes.Count);
-		Assert.Equal(2, attributes.Count(attribute => attribute.Sensitive));
+		// The fixture was issued with raw OID attribute names.
+		IReadOnlyList<string> attributeNames = kyc.GetAttributeNames();
+		Assert.Equal(3, attributeNames.Count);
+		Assert.All(attributeNames, name => Assert.Matches(@"^[\d.]+$", name));
 
-		byte[] postalCode = kyc.PlainAttribute("postalCode");
+		byte[] postalCode = kyc.GetAttributeBuffer("postalCode");
 		Assert.Equal("12345", Encoding.UTF8.GetString(postalCode));
 
-		byte[] email = kyc.DecryptAttribute("email", subject);
+		byte[] email = kyc.GetAttributeBuffer("email", subject);
 		Assert.Equal("john@example.com", Encoding.UTF8.GetString(email));
 
 		using CryptoCertificate baseCertificate = kyc.Base();
-		Assert.Contains("BEGIN CERTIFICATE", baseCertificate.Pem(), StringComparison.Ordinal);
+		Assert.Contains("BEGIN CERTIFICATE", baseCertificate.ToPem(), StringComparison.Ordinal);
 
-		using CryptoCertificate trustRoot = CryptoCertificate.Parse(runtime, KycFixture.Pem);
+		using CryptoCertificate trustRoot = runtime.Certificates.Parse(KycFixture.Pem);
 		CryptoCertificate[] roots = { trustRoot };
 		CryptoCertificate[] none = Array.Empty<CryptoCertificate>();
 		Assert.True(kyc.Verify(roots, none, KycFixture.ValidAt));

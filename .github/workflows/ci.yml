@@ -92,7 +92,7 @@ jobs:
           scope: "@keetanetwork"
 
       - name: Check formatting and linting
-        run: make lint
+        run: make do-lint-ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -126,7 +126,7 @@ jobs:
         run: bash scripts/build-wasm.sh
 
       - name: Pack
-        run: dotnet pack src/KeetaNet.Anchor/KeetaNet.Anchor.csproj -c Release -o artifacts
+        run: dotnet pack KeetaNet.Anchor.slnx -c Release -o artifacts
 
       - name: Upload package
         uses: actions/upload-artifact@v4

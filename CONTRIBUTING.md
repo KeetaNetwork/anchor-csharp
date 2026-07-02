@@ -5,7 +5,7 @@
 1. Install the .NET SDK matching [`global.json`](global.json) and Rust with the `wasm32-wasip1` target (`rustup target add wasm32-wasip1`).
 2. Run `make developer` to restore, build, and test. The first build runs `make wasm` to produce the embedded wasm core from the pinned crates.io release.
 3. Make changes. Use hard tabs for indentation (spaces only where the format requires them, ex. YAML).
-4. Run `make lint` and `make test` before opening a pull request.
+4. Run `make do-lint` and `make test` before opening a pull request.
 
 Always drive tasks through the `Makefile`, never raw `dotnet`.
 

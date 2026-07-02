@@ -21,7 +21,7 @@ public sealed class ConcurrencyTests
 	public async Task ParallelSignAndVerifyFromThreadPoolThreadsStayConsistent()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
 		string expectedAddress = account.Address;
 
 		Task<bool>[] work = Enumerable.Range(0, 32)
@@ -59,7 +59,7 @@ public sealed class ConcurrencyTests
 
 	private static string DeriveAddress(WasmRuntime runtime, uint index)
 	{
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, index, "ed25519");
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, index, "ed25519");
 		return account.Address;
 	}
 
@@ -67,14 +67,14 @@ public sealed class ConcurrencyTests
 	public async Task PreCanceledTokenCancelsWithoutDispatching()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
-		using KycClient client = KycClient.WithAccount(runtime, "http://127.0.0.1:1", account.Address, account);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
+		using KycClient client = runtime.CreateKycClient("http://127.0.0.1:1", account.Address, account);
 
 		using var cancellation = new CancellationTokenSource();
 		await cancellation.CancelAsync();
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(
-			() => client.ProvidersAsync(Countries, cancellation.Token));
+			() => client.GetProvidersAsync(Countries, cancellation.Token));
 	}
 
 	[Fact]
@@ -87,12 +87,12 @@ public sealed class ConcurrencyTests
 		int port = ((IPEndPoint)listener.LocalEndpoint).Port;
 
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ed25519");
-		using KycClient client = KycClient.WithAccount(runtime, $"http://127.0.0.1:{port}", account.Address, account);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
+		using KycClient client = runtime.CreateKycClient($"http://127.0.0.1:{port}", account.Address, account);
 
 		using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(
-			() => client.ProvidersAsync(Countries, cancellation.Token));
+			() => client.GetProvidersAsync(Countries, cancellation.Token));
 	}
 }
