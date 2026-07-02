@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/KeetaNet.Anchor/KeetaNet.Anchor.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/KeetaNet.Anchor.Tests/KeetaNet.Anchor.Tests.csproj" />
+  </Folder>
+</Solution>

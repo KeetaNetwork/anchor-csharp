@@ -1,0 +1,45 @@
+version: "0.2"
+ignorePaths:
+  - bin
+  - obj
+  - artifacts
+  - "**/*.wasm"
+  - "**/*.lock"
+  - .github/**
+words:
+  - KeetaNet
+  - keeta
+  - keetanetwork
+  - keetapay
+  - anchor
+  - csharp
+  - dotnet
+  - NuGet
+  - nupkg
+  - snupkg
+  - wasm
+  - WASI
+  - wasip1
+  - wasip2
+  - wasmtime
+  - Wasmtime
+  - xunit
+  - coverlet
+  - kyc
+  - ed25519
+  - ecdsa
+  - secp256k1
+  - secp256r1
+  - passphrase
+  - PEM
+  - roslyn
+  - sourcelink
+  - Deterministic
+  - Sonar
+  - SonarCloud
+  - rustup
+  - finalizer
+  - finalizers
+  - slnx
+  - sandboxed
+  - cobertura

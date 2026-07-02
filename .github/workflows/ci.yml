@@ -1,0 +1,185 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  RUST_TOOLCHAIN: "1.94.0"
+
+jobs:
+  build-test:
+    name: Build & Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest-l, windows-latest-l]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          targets: wasm32-wasip1
+
+      - name: Cache wasm build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .wasm-build
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+
+      - name: Build wasm core
+        shell: bash
+        run: bash scripts/build-wasm.sh
+
+      - name: Restore
+        run: dotnet restore KeetaNet.Anchor.slnx
+
+      - name: Build
+        run: dotnet build KeetaNet.Anchor.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test KeetaNet.Anchor.slnx -c Release --no-build
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest-l
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Verify formatting
+        run: dotnet format KeetaNet.Anchor.slnx --verify-no-changes
+
+      - name: Spellcheck
+        run: npx --yes cspell --config cspell.yaml --no-progress "src/**/*.cs" "tests/**/*.cs" "scripts/**" "Makefile" "*.md"
+
+  pack:
+    name: Pack
+    runs-on: ubuntu-latest-l
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          targets: wasm32-wasip1
+
+      - name: Cache wasm build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .wasm-build
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+
+      - name: Build wasm core
+        run: bash scripts/build-wasm.sh
+
+      - name: Pack
+        run: dotnet pack src/KeetaNet.Anchor/KeetaNet.Anchor.csproj -c Release -o artifacts
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts/*.*nupkg
+
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest-l
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore KeetaNet.Anchor.slnx
+
+      - name: Audit dependencies
+        run: |
+          dotnet list KeetaNet.Anchor.slnx package --vulnerable --include-transitive 2>&1 | tee audit.log
+          if grep -q "has the following vulnerable packages" audit.log; then
+            echo "::error::Vulnerable packages found"
+            exit 1
+          fi
+
+  sonar:
+    name: SonarCloud
+    runs-on: ubuntu-latest-l
+    if: github.repository == 'KeetaNetwork/anchor-csharp'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.94.0"
+          targets: wasm32-wasip1
+
+      - name: Cache wasm build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            .wasm-build
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+
+      - name: Build wasm core
+        run: bash scripts/build-wasm.sh
+
+      - name: Test with coverage
+        run: >
+          dotnet test KeetaNet.Anchor.slnx -c Release
+          -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+      - name: Convert coverage to SonarQube format
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            "-reports:**/TestResults/**/coverage.cobertura.xml" \
+            "-targetdir:.sonar-coverage" \
+            "-reporttypes:SonarQube"
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dproject.settings=./sonar-project.properties
