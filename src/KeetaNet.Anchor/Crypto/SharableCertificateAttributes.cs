@@ -34,28 +34,43 @@ public sealed class SharableCertificateAttributes : IDisposable
 		IEnumerable<Certificate>? intermediates = null,
 		IEnumerable<string>? names = null)
 	{
-		int[] bridges = Handles(intermediates);
+		int[] bridges = Handles.Of(intermediates);
 		string[] labels = (names ?? Enumerable.Empty<string>()).ToArray();
-		return new(runtime, runtime.SharableFromCertificate(certificate.Handle, subject.Handle, bridges, labels));
+		int handle = runtime.SharableFromCertificate(certificate.Handle, subject.Handle, bridges, labels);
+
+		return new(runtime, handle);
 	}
 
 	/// <summary>Open a bundle from encoded container bytes, resolved with <paramref name="principals"/>.</summary>
 	public static SharableCertificateAttributes FromEncoded(
 		WasmRuntime runtime,
 		byte[] data,
-		IEnumerable<Account>? principals = null) =>
-		new(runtime, runtime.SharableFromEncoded(data, AccountHandles(principals)));
+		IEnumerable<Account>? principals = null)
+	{
+		int[] handles = Handles.Of(principals);
+		int handle = runtime.SharableFromEncoded(data, handles);
+
+		return new(runtime, handle);
+	}
 
 	/// <summary>Open a bundle from a PEM envelope, resolved with <paramref name="principals"/>.</summary>
 	public static SharableCertificateAttributes FromPem(
 		WasmRuntime runtime,
 		string pem,
-		IEnumerable<Account>? principals = null) =>
-		new(runtime, runtime.SharableFromPem(pem, AccountHandles(principals)));
+		IEnumerable<Account>? principals = null)
+	{
+		int[] handles = Handles.Of(principals);
+		int handle = runtime.SharableFromPem(pem, handles);
+
+		return new(runtime, handle);
+	}
 
 	/// <summary>Grant <paramref name="accounts"/> access, invalidating the encoded form.</summary>
-	public void GrantAccess(IEnumerable<Account> accounts) =>
-		_runtime.SharableGrantAccess(Handle, AccountHandles(accounts));
+	public void GrantAccess(IEnumerable<Account> accounts)
+	{
+		int[] handles = Handles.Of(accounts);
+		_runtime.SharableGrantAccess(Handle, handles);
+	}
 
 	/// <summary>Revoke the account identified by its type-prefixed <paramref name="publicKey"/>.</summary>
 	public void RevokeAccess(byte[] publicKey) => _runtime.SharableRevokeAccess(Handle, publicKey);
@@ -64,8 +79,7 @@ public sealed class SharableCertificateAttributes : IDisposable
 	public IReadOnlyList<byte[]> Principals()
 	{
 		byte[] payload = _runtime.SharablePrincipals(Handle);
-		int[][] raw = JsonSerializer.Deserialize<int[][]>(payload) ?? Array.Empty<int[]>();
-		return raw.Select(values => Array.ConvertAll(values, value => (byte)value)).ToList();
+		return PrincipalKeys.Decode(payload);
 	}
 
 	/// <summary>The bundle's DER-encoded container bytes, requiring a granted recipient.</summary>
@@ -75,13 +89,18 @@ public sealed class SharableCertificateAttributes : IDisposable
 	public string ToPem() => _runtime.SharableToPem(Handle);
 
 	/// <summary>The embedded leaf certificate, as an independently owned object.</summary>
-	public KycCertificate LeafCertificate() => KycCertificate.Adopt(_runtime, _runtime.SharableCertificate(Handle));
+	public KycCertificate LeafCertificate()
+	{
+		int handle = _runtime.SharableCertificate(Handle);
+		return KycCertificate.Adopt(_runtime, handle);
+	}
 
 	/// <summary>The embedded intermediate certificate chain, as owned objects.</summary>
 	public IReadOnlyList<Certificate> Intermediates()
 	{
 		byte[] payload = _runtime.SharableIntermediates(Handle);
 		string[] pems = JsonSerializer.Deserialize<string[]>(payload) ?? Array.Empty<string>();
+
 		return pems.Select(pem => Certificate.Parse(_runtime, pem)).ToList();
 	}
 
@@ -96,21 +115,26 @@ public sealed class SharableCertificateAttributes : IDisposable
 	public byte[]? AttributeBuffer(string name)
 	{
 		byte[] value = _runtime.SharableAttributeBuffer(Handle, name);
-		return value.Length == 0 ? null : value;
+		return NullWhenEmpty(value);
 	}
 
 	/// <summary>The schema-decoded semantic value for <paramref name="name"/>, or <c>null</c> when not disclosed.</summary>
 	public byte[]? AttributeValue(string name)
 	{
 		byte[] value = _runtime.SharableAttributeValue(Handle, name);
-		return value.Length == 0 ? null : value;
+		return NullWhenEmpty(value);
 	}
 
-	private static int[] Handles(IEnumerable<Certificate>? certificates) =>
-		(certificates ?? Enumerable.Empty<Certificate>()).Select(certificate => certificate.Handle).ToArray();
+	/// <summary>Map the core's empty not-disclosed sentinel to <c>null</c>.</summary>
+	private static byte[]? NullWhenEmpty(byte[] value)
+	{
+		if (value.Length == 0)
+		{
+			return null;
+		}
 
-	private static int[] AccountHandles(IEnumerable<Account>? accounts) =>
-		(accounts ?? Enumerable.Empty<Account>()).Select(account => account.Handle).ToArray();
+		return value;
+	}
 
 	/// <summary>Release the core-module bundle handle.</summary>
 	public void Dispose()

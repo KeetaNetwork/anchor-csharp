@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
@@ -33,10 +31,17 @@ public sealed class EncryptedContainer : IDisposable
 		bool? locked = null,
 		Account? signer = null)
 	{
-		int[] handles = Handles(principals);
-		int lockedFlag = locked is null ? -1 : locked.Value ? 1 : 0;
+		int[] handles = Handles.Of(principals);
+		int lockedFlag = locked switch
+		{
+			null => -1,
+			true => 1,
+			false => 0,
+		};
 		int signerHandle = signer?.Handle ?? 0;
-		return new(runtime, runtime.EncryptedContainerFromPlaintext(data, handles, lockedFlag, signerHandle));
+
+		int handle = runtime.EncryptedContainerFromPlaintext(data, handles, lockedFlag, signerHandle);
+		return new(runtime, handle);
 	}
 
 	/// <summary>
@@ -46,15 +51,25 @@ public sealed class EncryptedContainer : IDisposable
 	public static EncryptedContainer FromEncoded(
 		WasmRuntime runtime,
 		byte[] data,
-		IEnumerable<Account>? principals = null) =>
-		new(runtime, runtime.EncryptedContainerFromEncoded(data, Handles(principals)));
+		IEnumerable<Account>? principals = null)
+	{
+		int[] handles = Handles.Of(principals);
+		int handle = runtime.EncryptedContainerFromEncoded(data, handles);
+
+		return new(runtime, handle);
+	}
 
 	/// <summary>
 	/// Build a container from a blob that must be encrypted, opened by one of
 	/// <paramref name="principals"/>.
 	/// </summary>
-	public static EncryptedContainer FromEncrypted(WasmRuntime runtime, byte[] data, IEnumerable<Account> principals) =>
-		new(runtime, runtime.EncryptedContainerFromEncrypted(data, Handles(principals)));
+	public static EncryptedContainer FromEncrypted(WasmRuntime runtime, byte[] data, IEnumerable<Account> principals)
+	{
+		int[] handles = Handles.Of(principals);
+		int handle = runtime.EncryptedContainerFromEncrypted(data, handles);
+
+		return new(runtime, handle);
+	}
 
 	/// <summary>The decrypted, decompressed plaintext.</summary>
 	public byte[] Plaintext() => _runtime.EncryptedContainerGetPlaintext(Handle);
@@ -78,26 +93,30 @@ public sealed class EncryptedContainer : IDisposable
 	public byte[]? SigningAccount()
 	{
 		byte[] key = _runtime.EncryptedContainerSigningAccount(Handle);
-		return key.Length == 0 ? null : key;
+		if (key.Length == 0)
+		{
+			return null;
+		}
+
+		return key;
 	}
 
 	/// <summary>The type-prefixed public keys of the accounts that can open it.</summary>
 	public IReadOnlyList<byte[]> Principals()
 	{
 		byte[] payload = _runtime.EncryptedContainerPrincipals(Handle);
-		int[][] raw = JsonSerializer.Deserialize<int[][]>(payload) ?? Array.Empty<int[]>();
-		return raw.Select(values => Array.ConvertAll(values, value => (byte)value)).ToList();
+		return PrincipalKeys.Decode(payload);
 	}
 
 	/// <summary>Grant <paramref name="accounts"/> access, invalidating the encoded form.</summary>
-	public void GrantAccess(IEnumerable<Account> accounts) =>
-		_runtime.EncryptedContainerGrantAccess(Handle, Handles(accounts));
+	public void GrantAccess(IEnumerable<Account> accounts)
+	{
+		int[] handles = Handles.Of(accounts);
+		_runtime.EncryptedContainerGrantAccess(Handle, handles);
+	}
 
 	/// <summary>Revoke the account identified by its type-prefixed <paramref name="publicKey"/>.</summary>
 	public void RevokeAccess(byte[] publicKey) => _runtime.EncryptedContainerRevokeAccess(Handle, publicKey);
-
-	private static int[] Handles(IEnumerable<Account>? accounts) =>
-		(accounts ?? Enumerable.Empty<Account>()).Select(account => account.Handle).ToArray();
 
 	/// <summary>Release the core-module container handle.</summary>
 	public void Dispose()

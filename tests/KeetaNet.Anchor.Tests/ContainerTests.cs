@@ -79,7 +79,8 @@ public sealed class ContainerTests
 		container.GrantAccess(new[] { reader });
 		Assert.Equal(2, container.Principals().Count);
 
-		container.RevokeAccess(Convert.FromHexString(reader.PublicKey));
+		byte[] readerKey = Convert.FromHexString(reader.PublicKey);
+		container.RevokeAccess(readerKey);
 		Assert.Single(container.Principals());
 	}
 }

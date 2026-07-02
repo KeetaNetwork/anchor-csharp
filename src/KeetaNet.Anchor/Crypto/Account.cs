@@ -21,32 +21,51 @@ public sealed class Account : IDisposable
 
 	/// <summary>Derive a signing account from a hex <paramref name="seed"/>.</summary>
 	/// <remarks><paramref name="algorithm"/> is <c>ed25519</c>, <c>ecdsa_secp256k1</c>, or <c>ecdsa_secp256r1</c>.</remarks>
-	public static Account FromSeed(WasmRuntime runtime, string seed, uint index, string algorithm) =>
-		new(runtime, runtime.AccountFromSeed(seed, index, algorithm));
+	public static Account FromSeed(WasmRuntime runtime, string seed, uint index, string algorithm)
+	{
+		int handle = runtime.AccountFromSeed(seed, index, algorithm);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Build a read-only account from its textual address.</summary>
-	public static Account FromAddress(WasmRuntime runtime, string address) =>
-		new(runtime, runtime.AccountFromAddress(address));
+	public static Account FromAddress(WasmRuntime runtime, string address)
+	{
+		int handle = runtime.AccountFromAddress(address);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Derive a signing account from a hex <paramref name="privateKey"/>.</summary>
 	/// <remarks><paramref name="algorithm"/> is <c>ed25519</c>, <c>ecdsa_secp256k1</c>, or <c>ecdsa_secp256r1</c>.</remarks>
-	public static Account FromPrivateKey(WasmRuntime runtime, string privateKey, string algorithm) =>
-		new(runtime, runtime.AccountFromPrivateKey(privateKey, algorithm));
+	public static Account FromPrivateKey(WasmRuntime runtime, string privateKey, string algorithm)
+	{
+		int handle = runtime.AccountFromPrivateKey(privateKey, algorithm);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Derive a signing account from a BIP39 mnemonic <paramref name="words"/>.</summary>
-	public static Account FromPassphrase(WasmRuntime runtime, IEnumerable<string> words, uint index, string algorithm) =>
-		new(runtime, runtime.AccountFromPassphrase(string.Join('\n', words), index, algorithm));
+	public static Account FromPassphrase(WasmRuntime runtime, IEnumerable<string> words, uint index, string algorithm)
+	{
+		string mnemonic = string.Join('\n', words);
+		int handle = runtime.AccountFromPassphrase(mnemonic, index, algorithm);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Build a read-only account from a hex <paramref name="publicKey"/>.</summary>
-	public static Account FromPublicKey(WasmRuntime runtime, string publicKey, string algorithm) =>
-		new(runtime, runtime.AccountFromPublicKey(publicKey, algorithm));
+	public static Account FromPublicKey(WasmRuntime runtime, string publicKey, string algorithm)
+	{
+		int handle = runtime.AccountFromPublicKey(publicKey, algorithm);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Generate a random hex seed.</summary>
 	public static string GenerateSeed(WasmRuntime runtime) => runtime.AccountGenerateSeed();
 
 	/// <summary>Generate a random BIP39 mnemonic.</summary>
-	public static IReadOnlyList<string> GeneratePassphrase(WasmRuntime runtime) =>
-		runtime.AccountGeneratePassphrase().Split('\n', StringSplitOptions.RemoveEmptyEntries);
+	public static IReadOnlyList<string> GeneratePassphrase(WasmRuntime runtime)
+	{
+		string words = runtime.AccountGeneratePassphrase();
+		return words.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+	}
 
 	/// <summary>The account's textual <c>keeta_...</c> address.</summary>
 	public string Address => _runtime.AccountAddress(Handle);

@@ -32,15 +32,15 @@ Use the `Makefile`, not raw `dotnet`, for every task:
 | `make pack` | Produce the NuGet package |
 | `make wasm` | Build the P1 wasm core from the pinned crates.io release |
 
-## Wasm core provenance
+## WASM Core
 
-The wasm core is never committed. `make wasm` downloads the pinned `keetanetwork-anchor-client-wasi` release from crates.io, verifies its sha256 checksum, builds it for `wasm32-wasip1`, and places the artifact where the library embeds it as a resource. The version and checksum pins live in [`scripts/build-wasm.sh`](scripts/build-wasm.sh); bump both together.
+The `make wasm` command downloads the pinned `keetanetwork-anchor-client-wasi` release from crates.io, verifies its sha256 checksum, builds it for `wasm32-wasip1`, and places the artifact where the library embeds it as a resource. The version and checksum pins live in [`scripts/build-wasm.sh`](scripts/build-wasm.sh).
 
-## FFI safety model
+## FFI Safety Model
 
-Interop is Wasmtime-hosted WebAssembly, not native P/Invoke. Guest memory is a sandboxed linear buffer; the host and guest share the guest's allocator, so there is no allocator-mismatch or double-free hazard, and no managed memory is pinned across the boundary.
+Interop is Wasmtime-hosted WebAssembly, not native P/Invoke. Guest memory is a sandboxed linear buffer. The host and guest share the guest's allocator, so there is no allocator-mismatch or double-free hazard, and no managed memory is pinned across the boundary.
 
-Two rules the SDK enforces:
+### SDK Rules:
 
 - **Thread-safe by construction.** A `WasmRuntime` owns one Wasmtime `Store`, which cannot be used from more than one thread. The runtime confines it to a dedicated dispatcher thread and serializes every call onto it, so any thread may use the SDK: offline operations dispatch synchronously, networked client operations are `async` and accept a `CancellationToken`.
 - **Deterministic disposal.** Handle-backed types (`Account`, `Certificate`, `KycCertificate`, containers, the clients) implement `IDisposable` and release their wasm handle on `Dispose`. Wrap them in `using`. A finalizer backstop reclaims forgotten handles by enqueueing the free onto the dispatcher, but deterministic disposal remains the contract.

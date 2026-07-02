@@ -21,9 +21,7 @@ public sealed class SharableTests
 		using Account subject = Account.FromSeed(runtime, TestSeeds.Subject, 0, "ecdsa_secp256k1");
 		using Account issuer = Account.FromSeed(runtime, TestSeeds.Issuer, 0, "ecdsa_secp256k1");
 		using KycCertificate leaf = IssueLeaf(runtime, subject, issuer);
-
-		using SharableCertificateAttributes bundle =
-			SharableCertificateAttributes.FromCertificate(runtime, leaf, subject, names: EmailOnly);
+		using SharableCertificateAttributes bundle = SharableCertificateAttributes.FromCertificate(runtime, leaf, subject, names: EmailOnly);
 
 		Assert.Throws<KeetaException>(() => bundle.Export());
 	}
@@ -38,15 +36,19 @@ public sealed class SharableTests
 		using Account recipient = Account.FromSeed(runtime, TestSeeds.Recipient, 0, algorithm);
 		using KycCertificate leaf = IssueLeaf(runtime, subject, issuer);
 
-		using SharableCertificateAttributes bundle = SharableCertificateAttributes.FromCertificate(
-			runtime, leaf, subject, names: BothAttributes);
+		using SharableCertificateAttributes bundle = SharableCertificateAttributes.FromCertificate(runtime, leaf, subject, names: BothAttributes);
 		bundle.GrantAccess(new[] { recipient });
+
 		string pem = bundle.ToPem();
 
-		using SharableCertificateAttributes opened =
-			SharableCertificateAttributes.FromPem(runtime, pem, new[] { recipient });
-		Assert.Equal("12345", Encoding.UTF8.GetString(opened.AttributeValue("postalCode")!));
-		Assert.Equal("john@example.com", Encoding.UTF8.GetString(opened.AttributeValue("email")!));
+		using SharableCertificateAttributes opened = SharableCertificateAttributes.FromPem(runtime, pem, new[] { recipient });
+
+		byte[]? postalCode = opened.AttributeValue("postalCode");
+		Assert.Equal("12345", Encoding.UTF8.GetString(postalCode!));
+
+		byte[]? email = opened.AttributeValue("email");
+		Assert.Equal("john@example.com", Encoding.UTF8.GetString(email!));
+
 		Assert.Null(opened.AttributeBuffer("doesNotExist"));
 
 		using KycCertificate embedded = opened.LeafCertificate();
@@ -59,15 +61,17 @@ public sealed class SharableTests
 		Assert.Equal(2, opened.AttributeNames().Count);
 	}
 
-	private static KycCertificate IssueLeaf(WasmRuntime runtime, Account subject, Account issuer) =>
-		KycCertificate.Builder(runtime)
+	private static KycCertificate IssueLeaf(WasmRuntime runtime, Account subject, Account issuer)
+	{
+		return KycCertificate.Builder(runtime)
 			.Subject(subject)
 			.Issuer(issuer)
 			.SubjectName("Subject")
 			.IssuerName("Issuer")
 			.Serial(7)
-			.Validity(DateTimeOffset.FromUnixTimeSeconds(1_700_000_000), DateTimeOffset.FromUnixTimeSeconds(1_900_000_000))
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
 			.SetAttribute("postalCode", sensitive: false, "12345")
 			.SetAttribute("email", sensitive: true, "john@example.com")
 			.Issue();
+	}
 }

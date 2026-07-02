@@ -21,7 +21,8 @@ public sealed class EmbeddedWasmTests
 		resource.CopyTo(payload);
 
 		using var engine = new Engine();
-		using WasmModule module = WasmModule.FromBytes(engine, "core", payload.ToArray());
+		byte[] core = payload.ToArray();
+		using WasmModule module = WasmModule.FromBytes(engine, "core", core);
 
 		var exports = module.Exports.Select(export => export.Name).ToArray();
 		Assert.Contains("memory", exports);

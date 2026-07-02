@@ -18,7 +18,7 @@ coverage*.info
 .packages/
 
 # Wasm core built from the pinned crates.io release (never committed)
-*.wasm
+wasm/
 .wasm-build/
 
 # IDE

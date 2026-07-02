@@ -189,9 +189,11 @@ public sealed record AssetAccountStatus(bool ActionRequired, IReadOnlyList<JsonE
 public static class AssetAddress
 {
 	/// <summary>Decode <paramref name="address"/> into the generated typed model.</summary>
-	public static Generated.AddressTypes Parse(JsonElement address) =>
-		Generated.AddressTypes.FromJson(address.GetRawText())
-		?? throw new KeetaException("DECODE", "could not decode an asset-movement address");
+	public static Generated.AddressTypes Parse(JsonElement address)
+	{
+		string json = address.GetRawText();
+		return Generated.AddressTypes.FromJson(json) ?? throw new KeetaException("DECODE", "could not decode an asset-movement address");
+	}
 
 	/// <summary>
 	/// Try to decode <paramref name="address"/> into the generated typed model,
@@ -199,9 +201,10 @@ public static class AssetAddress
 	/// </summary>
 	public static bool TryParse(JsonElement address, out Generated.AddressTypes? parsed)
 	{
+		string json = address.GetRawText();
 		try
 		{
-			parsed = Generated.AddressTypes.FromJson(address.GetRawText());
+			parsed = Generated.AddressTypes.FromJson(json);
 			return parsed is not null;
 		}
 		catch (JsonException)

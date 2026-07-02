@@ -9,6 +9,10 @@ internal static class TestSeeds
 	public const string Issuer = "2222222222222222222222222222222222222222222222222222222222222222";
 	public const string Recipient = "3333333333333333333333333333333333333333333333333333333333333333";
 
+	/// <summary>The validity window issued leaves share across the suites.</summary>
+	public static readonly DateTimeOffset NotBefore = DateTimeOffset.FromUnixTimeSeconds(1_700_000_000);
+	public static readonly DateTimeOffset NotAfter = DateTimeOffset.FromUnixTimeSeconds(1_900_000_000);
+
 	public static TheoryData<string> Algorithms => new()
 	{
 		"ed25519",

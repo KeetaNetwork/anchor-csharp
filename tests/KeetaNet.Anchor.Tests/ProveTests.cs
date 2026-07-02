@@ -23,7 +23,7 @@ public sealed class ProveTests
 			.SubjectName("Subject")
 			.IssuerName("Issuer")
 			.Serial(7)
-			.Validity(DateTimeOffset.FromUnixTimeSeconds(1_700_000_000), DateTimeOffset.FromUnixTimeSeconds(1_900_000_000))
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
 			.SetAttribute("email", sensitive: true, "user@example.com")
 			.SetAttribute("fullName", sensitive: true, "Test User")
 			.Issue();

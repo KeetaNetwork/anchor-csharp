@@ -6,10 +6,7 @@ using System.Text.Json;
 namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>One KYC attribute: its OID <see cref="Name"/> and whether its value is encrypted.</summary>
-[SuppressMessage(
-	"Naming",
-	"CA1711:Identifiers should not have incorrect suffix",
-	Justification = "A KYC certificate attribute is the domain term, matching the TypeScript client; it is not a System.Attribute.")]
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix", Justification = "A KYC certificate attribute is the domain term, matching the TypeScript client; it is not a System.Attribute.")]
 public sealed record KycAttribute(string Name, bool Sensitive);
 
 /// <summary>
@@ -26,11 +23,6 @@ public sealed record AttributeProof(string Value, string Salt);
 /// </summary>
 public sealed class KycCertificate : IDisposable
 {
-	private static readonly JsonSerializerOptions Json = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-	};
-
 	private readonly WasmRuntime _runtime;
 	private bool _disposed;
 
@@ -47,8 +39,11 @@ public sealed class KycCertificate : IDisposable
 	internal static KycCertificate Adopt(WasmRuntime runtime, int handle) => new(runtime, handle);
 
 	/// <summary>Parse a PEM-encoded KYC certificate.</summary>
-	public static KycCertificate Parse(WasmRuntime runtime, string pem) =>
-		new(runtime, runtime.KycCertificateParse(pem));
+	public static KycCertificate Parse(WasmRuntime runtime, string pem)
+	{
+		int handle = runtime.KycCertificateParse(pem);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Begin issuing a new KYC leaf certificate under <paramref name="runtime"/>.</summary>
 	public static KycCertificateBuilder Builder(WasmRuntime runtime) => new(runtime);
@@ -57,10 +52,18 @@ public sealed class KycCertificate : IDisposable
 	public string Pem() => _runtime.KycCertificatePem(Handle);
 
 	/// <summary>The base certificate, as an independently owned certificate object.</summary>
-	public Certificate Base() => new(_runtime, _runtime.KycCertificateBase(Handle));
+	public Certificate Base()
+	{
+		int handle = _runtime.KycCertificateBase(Handle);
+		return new(_runtime, handle);
+	}
 
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
-	public bool ValidAt(DateTimeOffset moment) => _runtime.KycCertificateValidAt(Handle, moment.ToUnixTimeMilliseconds());
+	public bool ValidAt(DateTimeOffset moment)
+	{
+		long unixMillis = moment.ToUnixTimeMilliseconds();
+		return _runtime.KycCertificateValidAt(Handle, unixMillis);
+	}
 
 	/// <summary>
 	/// Whether the certificate chains to one of <paramref name="trustedRoots"/> at
@@ -71,16 +74,18 @@ public sealed class KycCertificate : IDisposable
 		IEnumerable<Certificate> intermediates,
 		DateTimeOffset moment)
 	{
-		int[] roots = trustedRoots.Select(certificate => certificate.Handle).ToArray();
-		int[] bridges = intermediates.Select(certificate => certificate.Handle).ToArray();
-		return _runtime.KycCertificateVerify(Handle, roots, bridges, moment.ToUnixTimeMilliseconds());
+		int[] roots = Handles.Of(trustedRoots);
+		int[] bridges = Handles.Of(intermediates);
+		long unixMillis = moment.ToUnixTimeMilliseconds();
+
+		return _runtime.KycCertificateVerify(Handle, roots, bridges, unixMillis);
 	}
 
 	/// <summary>The KYC attributes the certificate carries.</summary>
 	public IReadOnlyList<KycAttribute> Attributes()
 	{
 		byte[] payload = _runtime.KycCertificateAttributes(Handle);
-		return JsonSerializer.Deserialize<List<KycAttribute>>(payload, Json) ?? new List<KycAttribute>();
+		return KeetaJson.ReadList<KycAttribute>(payload);
 	}
 
 	/// <summary>A plain (unencrypted) attribute by <paramref name="name"/>.</summary>
@@ -98,43 +103,59 @@ public sealed class KycCertificate : IDisposable
 	public AttributeProof Prove(string name, Account subject)
 	{
 		byte[] payload = _runtime.KycCertificateProve(Handle, name, subject.Handle);
-		return JsonSerializer.Deserialize<AttributeProof>(payload, Json)
-			?? throw new KeetaException("PROOF", "the proof payload was empty");
+		return JsonSerializer.Deserialize<AttributeProof>(payload, KeetaJson.Options) ?? throw new KeetaException("PROOF", "the proof payload was empty");
 	}
 
 	/// <summary>
 	/// Whether <paramref name="proof"/> attests to sensitive attribute
 	/// <paramref name="name"/>, validated with <paramref name="subject"/>'s public key.
 	/// </summary>
-	public bool ValidateProof(string name, Account subject, AttributeProof proof) =>
-		_runtime.KycCertificateValidateProof(Handle, name, subject.Handle, JsonSerializer.Serialize(proof, Json));
+	public bool ValidateProof(string name, Account subject, AttributeProof proof)
+	{
+		string proofJson = JsonSerializer.Serialize(proof, KeetaJson.Options);
+		return _runtime.KycCertificateValidateProof(Handle, name, subject.Handle, proofJson);
+	}
 
 	/// <summary>
 	/// A plain scalar attribute decoded as text. Scalar and date attributes
 	/// decode to a UTF-8 string (dates as an ISO-8601 timestamp).
 	/// </summary>
-	public string GetText(string name) => Encoding.UTF8.GetString(PlainAttribute(name));
+	public string GetText(string name)
+	{
+		byte[] value = PlainAttribute(name);
+		return Encoding.UTF8.GetString(value);
+	}
 
 	/// <summary>
 	/// A sensitive scalar attribute decrypted with <paramref name="subject"/> and
 	/// decoded as text (dates as an ISO-8601 timestamp).
 	/// </summary>
-	public string GetText(string name, Account subject) =>
-		Encoding.UTF8.GetString(DecryptAttribute(name, subject));
+	public string GetText(string name, Account subject)
+	{
+		byte[] value = DecryptAttribute(name, subject);
+		return Encoding.UTF8.GetString(value);
+	}
 
 	/// <summary>
 	/// A plain structured attribute decoded as JSON. Structured attributes
 	/// (e.g. address, entity type) decode to a JSON object or array matching the
 	/// TypeScript client's value shape.
 	/// </summary>
-	public JsonElement GetJson(string name) => ParseJson(PlainAttribute(name));
+	public JsonElement GetJson(string name)
+	{
+		byte[] value = PlainAttribute(name);
+		return ParseJson(value);
+	}
 
 	/// <summary>
 	/// A sensitive structured attribute decrypted with <paramref name="subject"/>
 	/// and decoded as JSON.
 	/// </summary>
-	public JsonElement GetJson(string name, Account subject) =>
-		ParseJson(DecryptAttribute(name, subject));
+	public JsonElement GetJson(string name, Account subject)
+	{
+		byte[] value = DecryptAttribute(name, subject);
+		return ParseJson(value);
+	}
 
 	private static JsonElement ParseJson(byte[] payload)
 	{
@@ -163,11 +184,6 @@ public sealed class KycCertificate : IDisposable
 /// </summary>
 public sealed class KycCertificateBuilder
 {
-	private static readonly JsonSerializerOptions Json = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-	};
-
 	private readonly WasmRuntime _runtime;
 	private readonly List<IssueAttributeDto> _attributes = new();
 	private Account? _subject;
@@ -222,6 +238,7 @@ public sealed class KycCertificateBuilder
 	{
 		_notBefore = notBefore;
 		_notAfter = notAfter;
+
 		return this;
 	}
 
@@ -233,24 +250,37 @@ public sealed class KycCertificateBuilder
 	}
 
 	/// <summary>Set a scalar text attribute by <paramref name="name"/>.</summary>
-	public KycCertificateBuilder SetAttribute(string name, bool sensitive, string value) =>
-		SetAttribute(name, sensitive, Encoding.UTF8.GetBytes(value));
+	public KycCertificateBuilder SetAttribute(string name, bool sensitive, string value)
+	{
+		byte[] encoded = Encoding.UTF8.GetBytes(value);
+		return SetAttribute(name, sensitive, encoded);
+	}
 
 	/// <summary>Set a date attribute, encoded as an RFC-3339 timestamp.</summary>
-	public KycCertificateBuilder SetAttribute(string name, bool sensitive, DateTimeOffset value) =>
-		SetAttribute(
-			name,
-			sensitive,
-			Encoding.UTF8.GetBytes(value.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)));
+	public KycCertificateBuilder SetAttribute(string name, bool sensitive, DateTimeOffset value)
+	{
+		DateTimeOffset utc = value.ToUniversalTime();
+		string timestamp = utc.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture);
+		byte[] encoded = Encoding.UTF8.GetBytes(timestamp);
+
+		return SetAttribute(name, sensitive, encoded);
+	}
 
 	/// <summary>Set a structured attribute from its JSON value (camelCase fields).</summary>
-	public KycCertificateBuilder SetAttribute(string name, bool sensitive, JsonElement value) =>
-		SetAttribute(name, sensitive, Encoding.UTF8.GetBytes(value.GetRawText()));
+	public KycCertificateBuilder SetAttribute(string name, bool sensitive, JsonElement value)
+	{
+		string json = value.GetRawText();
+		byte[] encoded = Encoding.UTF8.GetBytes(json);
+
+		return SetAttribute(name, sensitive, encoded);
+	}
 
 	/// <summary>Set an attribute from its already-encoded semantic <paramref name="value"/> bytes.</summary>
 	public KycCertificateBuilder SetAttribute(string name, bool sensitive, byte[] value)
 	{
-		_attributes.Add(new IssueAttributeDto(name, sensitive, Array.ConvertAll(value, b => (int)b)));
+		int[] transport = Array.ConvertAll(value, b => (int)b);
+		_attributes.Add(new IssueAttributeDto(name, sensitive, transport));
+
 		return this;
 	}
 
@@ -259,24 +289,26 @@ public sealed class KycCertificateBuilder
 	{
 		Account subject = _subject ?? throw new InvalidOperationException("a subject account is required to issue a certificate");
 		Account issuer = _issuer ?? throw new InvalidOperationException("an issuer account is required to issue a certificate");
-		DateTimeOffset notBefore = _notBefore ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
-		DateTimeOffset notAfter = _notAfter ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
+		long notBefore = _notBefore?.ToUnixTimeSeconds() ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
+		long notAfter = _notAfter?.ToUnixTimeSeconds() ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
 
 		var parameters = new IssueParamsDto(
 			_subjectName ?? subject.Address,
 			_issuerName ?? issuer.Address,
 			_serial,
-			notBefore.ToUnixTimeSeconds(),
-			notAfter.ToUnixTimeSeconds(),
+			notBefore,
+			notAfter,
 			_isCertificateAuthority,
 			_attributes);
 
-		string json = JsonSerializer.Serialize(parameters, Json);
-		return KycCertificate.Adopt(_runtime, _runtime.KycCertificateIssue(subject.Handle, issuer.Handle, json));
+		string json = JsonSerializer.Serialize(parameters, KeetaJson.Options);
+		int handle = _runtime.KycCertificateIssue(subject.Handle, issuer.Handle, json);
+
+		return KycCertificate.Adopt(_runtime, handle);
 	}
 
-	// The issuance transport form the P1 core decodes. `value` is a number array (not
-	// base64) so it deserializes into the core's `Vec<u8>`.
+	// The issuance transport shape the P1 core decodes. `value` is a number array
+	// (not base64) so it deserializes into the core's `Vec<u8>`.
 	private sealed record IssueAttributeDto(string Name, bool Sensitive, int[] Value);
 
 	private sealed record IssueParamsDto(

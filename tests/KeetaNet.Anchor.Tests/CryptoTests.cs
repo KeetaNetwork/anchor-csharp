@@ -27,7 +27,9 @@ public sealed class CryptoTests
 		byte[] signature = account.Sign(message);
 		Assert.NotEmpty(signature);
 		Assert.True(account.Verify(message, signature));
-		Assert.False(account.Verify(Encoding.UTF8.GetBytes("tampered"), signature));
+
+		byte[] tampered = Encoding.UTF8.GetBytes("tampered");
+		Assert.False(account.Verify(tampered, signature));
 	}
 
 	[Theory]
@@ -38,7 +40,9 @@ public sealed class CryptoTests
 		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, algorithm);
 
 		byte[] secret = Encoding.UTF8.GetBytes("for my eyes only");
-		Assert.Equal(secret, account.Decrypt(account.Encrypt(secret)));
+		byte[] ciphertext = account.Encrypt(secret);
+		byte[] decrypted = account.Decrypt(ciphertext);
+		Assert.Equal(secret, decrypted);
 	}
 
 	[Fact]
@@ -51,7 +55,8 @@ public sealed class CryptoTests
 
 		using Account account = Account.FromPassphrase(runtime, mnemonic, 0, "ed25519");
 		byte[] message = Encoding.UTF8.GetBytes("mnemonic signer");
-		Assert.True(account.Verify(message, account.Sign(message)));
+		byte[] signature = account.Sign(message);
+		Assert.True(account.Verify(message, signature));
 	}
 
 	[Fact]
@@ -63,7 +68,9 @@ public sealed class CryptoTests
 
 		Assert.Contains("BEGIN CERTIFICATE", certificate.Pem(), StringComparison.Ordinal);
 		Assert.True(certificate.ValidAt(KycFixture.ValidAt));
-		Assert.False(certificate.ValidAt(DateTimeOffset.FromUnixTimeSeconds(0)));
+
+		DateTimeOffset epoch = DateTimeOffset.FromUnixTimeSeconds(0);
+		Assert.False(certificate.ValidAt(epoch));
 
 		Assert.Contains("Test Subject", certificate.Subject, StringComparison.Ordinal);
 		Assert.Contains("Test Issuer", certificate.Issuer, StringComparison.Ordinal);
@@ -84,15 +91,20 @@ public sealed class CryptoTests
 		Assert.Equal(3, attributes.Count);
 		Assert.Equal(2, attributes.Count(attribute => attribute.Sensitive));
 
-		Assert.Equal("12345", Encoding.UTF8.GetString(kyc.PlainAttribute("postalCode")));
-		Assert.Equal("john@example.com", Encoding.UTF8.GetString(kyc.DecryptAttribute("email", subject)));
+		byte[] postalCode = kyc.PlainAttribute("postalCode");
+		Assert.Equal("12345", Encoding.UTF8.GetString(postalCode));
+
+		byte[] email = kyc.DecryptAttribute("email", subject);
+		Assert.Equal("john@example.com", Encoding.UTF8.GetString(email));
 
 		using CryptoCertificate baseCertificate = kyc.Base();
 		Assert.Contains("BEGIN CERTIFICATE", baseCertificate.Pem(), StringComparison.Ordinal);
 
 		using CryptoCertificate trustRoot = CryptoCertificate.Parse(runtime, KycFixture.Pem);
-		Assert.True(kyc.Verify(new[] { trustRoot }, Array.Empty<CryptoCertificate>(), KycFixture.ValidAt));
-		Assert.False(kyc.Verify(Array.Empty<CryptoCertificate>(), Array.Empty<CryptoCertificate>(), KycFixture.ValidAt));
+		CryptoCertificate[] roots = { trustRoot };
+		CryptoCertificate[] none = Array.Empty<CryptoCertificate>();
+		Assert.True(kyc.Verify(roots, none, KycFixture.ValidAt));
+		Assert.False(kyc.Verify(none, none, KycFixture.ValidAt));
 	}
 }
 

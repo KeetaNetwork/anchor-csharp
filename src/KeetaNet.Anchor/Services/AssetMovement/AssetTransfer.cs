@@ -40,7 +40,9 @@ public sealed class AssetSimulatedTransfer
 			Recipient = recipient ?? _request.To.Recipient,
 			DepositMessage = depositMessage ?? _request.To.DepositMessage,
 		};
-		return _client.InitiateTransfer(_provider, _request with { To = to });
+		AssetTransferRequest request = _request with { To = to };
+
+		return _client.InitiateTransfer(_provider, request);
 	}
 }
 
@@ -76,6 +78,9 @@ public sealed class AssetTransfer
 	public AssetTransferStatus GetStatus() => _client.TransferStatus(_provider, Id);
 
 	/// <summary>Execute a fiat pull <paramref name="instruction"/> for this transfer.</summary>
-	public AssetTransferStatus Execute(AssetPullInstruction instruction) =>
-		_client.ExecuteTransfer(_provider, new AssetExecuteRequest(Id, instruction));
+	public AssetTransferStatus Execute(AssetPullInstruction instruction)
+	{
+		var request = new AssetExecuteRequest(Id, instruction);
+		return _client.ExecuteTransfer(_provider, request);
+	}
 }

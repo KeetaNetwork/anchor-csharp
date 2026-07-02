@@ -18,12 +18,18 @@ public sealed class Certificate : IDisposable
 	}
 
 	/// <summary>Parse a PEM-encoded certificate.</summary>
-	public static Certificate Parse(WasmRuntime runtime, string pem) =>
-		new(runtime, runtime.CertificateParse(pem));
+	public static Certificate Parse(WasmRuntime runtime, string pem)
+	{
+		int handle = runtime.CertificateParse(pem);
+		return new(runtime, handle);
+	}
 
 	/// <summary>Parse a DER-encoded certificate.</summary>
-	public static Certificate ParseDer(WasmRuntime runtime, byte[] der) =>
-		new(runtime, runtime.CertificateParseDer(der));
+	public static Certificate ParseDer(WasmRuntime runtime, byte[] der)
+	{
+		int handle = runtime.CertificateParseDer(der);
+		return new(runtime, handle);
+	}
 
 	/// <summary>The PEM encoding of the certificate.</summary>
 	public string Pem() => _runtime.CertificatePem(Handle);
@@ -32,7 +38,11 @@ public sealed class Certificate : IDisposable
 	public byte[] Der() => _runtime.CertificateDer(Handle);
 
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
-	public bool ValidAt(DateTimeOffset moment) => _runtime.CertificateValidAt(Handle, moment.ToUnixTimeMilliseconds());
+	public bool ValidAt(DateTimeOffset moment)
+	{
+		long unixMillis = moment.ToUnixTimeMilliseconds();
+		return _runtime.CertificateValidAt(Handle, unixMillis);
+	}
 
 	/// <summary>The subject distinguished name as an RFC 4514 string.</summary>
 	public string Subject => _runtime.CertificateSubject(Handle);
@@ -44,10 +54,24 @@ public sealed class Certificate : IDisposable
 	public string Serial => _runtime.CertificateSerial(Handle);
 
 	/// <summary>The start of the validity window.</summary>
-	public DateTimeOffset NotBefore => DateTimeOffset.FromUnixTimeSeconds(_runtime.CertificateNotBefore(Handle));
+	public DateTimeOffset NotBefore
+	{
+		get
+		{
+			long unixSeconds = _runtime.CertificateNotBefore(Handle);
+			return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
+		}
+	}
 
 	/// <summary>The end of the validity window.</summary>
-	public DateTimeOffset NotAfter => DateTimeOffset.FromUnixTimeSeconds(_runtime.CertificateNotAfter(Handle));
+	public DateTimeOffset NotAfter
+	{
+		get
+		{
+			long unixSeconds = _runtime.CertificateNotAfter(Handle);
+			return DateTimeOffset.FromUnixTimeSeconds(unixSeconds);
+		}
+	}
 
 	/// <summary>
 	/// The subject public key, type-prefixed and hex-encoded to match

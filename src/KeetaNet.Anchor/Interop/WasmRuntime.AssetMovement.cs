@@ -7,24 +7,14 @@ namespace KeetaNet.Anchor;
 /// </summary>
 public sealed partial class WasmRuntime
 {
-	internal int AssetWithAccount(string nodeUrl, string root, int accountHandle)
-	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument node = Write(nodeUrl, owned);
-			Argument anchor = Write(root, owned);
-			return TakeHandle(Invoke<int, int, int, int, int, int>(
-				"keeta_asset_with_account", node.Pointer, node.Length, anchor.Pointer, anchor.Length, accountHandle));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
-	}
+	internal int AssetWithAccount(string nodeUrl, string root, int accountHandle) =>
+		ClientWithAccount("keeta_asset_with_account", nodeUrl, root, accountHandle);
 
-	internal byte[] AssetProviders(int handle) =>
-		TakeBytes(Invoke<int, int>("keeta_asset_providers", handle));
+	internal byte[] AssetProviders(int handle)
+	{
+		int result = Invoke<int, int>("keeta_asset_providers", handle);
+		return TakeBytes(result);
+	}
 
 	internal byte[] AssetProviderById(int handle, string id) =>
 		WithHandleAndText("keeta_asset_provider_by_id", handle, id);
@@ -47,20 +37,8 @@ public sealed partial class WasmRuntime
 	internal byte[] AssetTransferStatus(int handle, string providerJson, string id) =>
 		WithProviderAndArg("keeta_asset_transfer_status", handle, providerJson, id);
 
-	internal byte[] AssetAccountStatus(int handle, string providerJson)
-	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument provider = Write(providerJson, owned);
-			return TakeBytes(Invoke<int, int, int, int>(
-				"keeta_asset_account_status", handle, provider.Pointer, provider.Length));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
-	}
+	internal byte[] AssetAccountStatus(int handle, string providerJson) =>
+		WithHandleAndText("keeta_asset_account_status", handle, providerJson);
 
 	internal byte[] AssetInitiateForwardingTemplate(int handle, string providerJson, string requestJson) =>
 		WithProviderAndArg("keeta_asset_initiate_forwarding_template", handle, providerJson, requestJson);
@@ -91,55 +69,16 @@ public sealed partial class WasmRuntime
 
 	internal byte[] AssetShareKycAwait(int handle, string providerJson, string requestJson, int intervalMs, int timeoutMs)
 	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument provider = Write(providerJson, owned);
-			Argument request = Write(requestJson, owned);
-			return TakeBytes(Invoke<int, int, int, int, int, int, int, int>(
-				"keeta_asset_share_kyc_await",
-				handle,
-				provider.Pointer, provider.Length,
-				request.Pointer, request.Length,
-				intervalMs, timeoutMs));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
+		using var arguments = new ArgumentScope(this);
+		Argument provider = arguments.Write(providerJson);
+		Argument request = arguments.Write(requestJson);
+
+		int result = Invoke<int, int, int, int, int, int, int, int>("keeta_asset_share_kyc_await", handle,
+			provider.Pointer, provider.Length,
+			request.Pointer, request.Length,
+			intervalMs, timeoutMs);
+		return TakeBytes(result);
 	}
 
 	internal void AssetFree(int handle) => Free("keeta_asset_free", handle);
-
-	/// <summary>Drive an export taking a client handle and one UTF-8 argument.</summary>
-	private byte[] WithHandleAndText(string export, int handle, string value)
-	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument argument = Write(value, owned);
-			return TakeBytes(Invoke<int, int, int, int>(export, handle, argument.Pointer, argument.Length));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
-	}
-
-	/// <summary>Drive an export taking a client handle, a provider, and one argument.</summary>
-	private byte[] WithProviderAndArg(string export, int handle, string providerJson, string argument)
-	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument provider = Write(providerJson, owned);
-			Argument value = Write(argument, owned);
-			return TakeBytes(Invoke<int, int, int, int, int, int>(
-				export, handle, provider.Pointer, provider.Length, value.Pointer, value.Length));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
-	}
 }

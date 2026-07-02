@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace KeetaNet.Anchor;
 
@@ -9,12 +8,6 @@ namespace KeetaNet.Anchor;
 /// </summary>
 public sealed class KycClient : IDisposable
 {
-	private static readonly JsonSerializerOptions Json = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-	};
-
 	private readonly WasmRuntime _runtime;
 	private readonly int _handle;
 	private bool _disposed;
@@ -39,9 +32,9 @@ public sealed class KycClient : IDisposable
 	/// <summary>Every provider that serves all <paramref name="countries"/> (ISO codes).</summary>
 	public IReadOnlyList<KycProvider> Providers(IEnumerable<string> countries)
 	{
-		string countriesJson = JsonSerializer.Serialize(countries.ToArray(), Json);
+		string countriesJson = JsonSerializer.Serialize(countries.ToArray(), KeetaJson.Options);
 		byte[] payload = _runtime.KycProviders(_handle, countriesJson);
-		return JsonSerializer.Deserialize<List<KycProvider>>(payload, Json) ?? new List<KycProvider>();
+		return KeetaJson.ReadList<KycProvider>(payload);
 	}
 
 	/// <summary>
@@ -54,22 +47,20 @@ public sealed class KycClient : IDisposable
 		IEnumerable<string> countries,
 		string? redirect = null)
 	{
-		string providerJson = JsonSerializer.Serialize(provider, Json);
-		string countriesJson = JsonSerializer.Serialize(countries.ToArray(), Json);
-		byte[] payload = _runtime.KycCreateVerification(_handle, providerJson, countriesJson, redirect ?? "");
+		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
+		string countriesJson = JsonSerializer.Serialize(countries.ToArray(), KeetaJson.Options);
 
-		return ParseOutcome<Verification, VerificationOutcome>(
-			payload, "verification", ready => new VerificationOutcome(ready, null), retry => new VerificationOutcome(null, retry));
+		byte[] payload = _runtime.KycCreateVerification(_handle, providerJson, countriesJson, redirect ?? "");
+		return ParseOutcome<Verification, VerificationOutcome>(payload, "verification", ready => new VerificationOutcome(ready, null), retry => new VerificationOutcome(null, retry));
 	}
 
 	/// <summary>Fetch the certificates issued for verification <paramref name="id"/>.</summary>
 	public CertificatesOutcome GetCertificates(KycProvider provider, string id)
 	{
-		string providerJson = JsonSerializer.Serialize(provider, Json);
-		byte[] payload = _runtime.KycGetCertificates(_handle, providerJson, id);
+		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
 
-		return ParseOutcome<Certificates, CertificatesOutcome>(
-			payload, "certificates", ready => new CertificatesOutcome(ready, null), retry => new CertificatesOutcome(null, retry));
+		byte[] payload = _runtime.KycGetCertificates(_handle, providerJson, id);
+		return ParseOutcome<Certificates, CertificatesOutcome>(payload, "certificates", ready => new CertificatesOutcome(ready, null), retry => new CertificatesOutcome(null, retry));
 	}
 
 	/// <summary>Parse <paramref name="provider"/>'s advertised issuer CA certificate.</summary>
@@ -80,11 +71,10 @@ public sealed class KycClient : IDisposable
 	/// <summary>Read the status of verification <paramref name="id"/>.</summary>
 	public StatusOutcome GetVerificationStatus(KycProvider provider, string id)
 	{
-		string providerJson = JsonSerializer.Serialize(provider, Json);
-		byte[] payload = _runtime.KycGetVerificationStatus(_handle, providerJson, id);
+		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
 
-		return ParseOutcome<VerificationStatus, StatusOutcome>(
-			payload, "status", ready => new StatusOutcome(ready, null), retry => new StatusOutcome(null, retry));
+		byte[] payload = _runtime.KycGetVerificationStatus(_handle, providerJson, id);
+		return ParseOutcome<VerificationStatus, StatusOutcome>(payload, "status", ready => new StatusOutcome(ready, null), retry => new StatusOutcome(null, retry));
 	}
 
 	/// <summary>
@@ -100,12 +90,15 @@ public sealed class KycClient : IDisposable
 	{
 		using var document = JsonDocument.Parse(payload);
 		JsonElement root = document.RootElement;
-		if (root.GetProperty("type").GetString() == "retry")
+		JsonElement type = root.GetProperty("type");
+		if (type.GetString() == "retry")
 		{
-			return retry(root.GetProperty("afterMs").GetUInt32());
+			JsonElement afterMs = root.GetProperty("afterMs");
+			return retry(afterMs.GetUInt32());
 		}
 
-		return ready(root.GetProperty(readyProperty).Deserialize<TReady>(Json)!);
+		JsonElement value = root.GetProperty(readyProperty);
+		return ready(value.Deserialize<TReady>(KeetaJson.Options)!);
 	}
 
 	/// <summary>Release the core-module client handle.</summary>

@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Wasmtime;
 
 namespace KeetaNet.Anchor;
@@ -23,12 +22,6 @@ public sealed partial class WasmRuntime : IDisposable
 {
 	private const string HostModule = "keeta:anchor/host";
 	private const string MemoryExport = "memory";
-
-	private static readonly JsonSerializerOptions HostJson = new()
-	{
-		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-	};
 
 	private readonly Engine _engine;
 	private readonly Module _module;
@@ -82,7 +75,11 @@ public sealed partial class WasmRuntime : IDisposable
 
 	/// <summary>Load the core module embedded in this assembly.</summary>
 	public static WasmRuntime Load() =>
-		new(engine => Module.FromBytes(engine, "core", EmbeddedCore()));
+		new(engine =>
+		{
+			byte[] core = EmbeddedCore();
+			return Module.FromBytes(engine, "core", core);
+		});
 
 	/// <summary>Load the core module from a filesystem path.</summary>
 	public static WasmRuntime Load(string wasmPath) =>
@@ -95,78 +92,33 @@ public sealed partial class WasmRuntime : IDisposable
 		using Stream resource = typeof(WasmRuntime).Assembly.GetManifestResourceStream(EmbeddedCoreResource)
 			?? throw new KeetaException("WASM", $"embedded core module `{EmbeddedCoreResource}` not found");
 		using var payload = new MemoryStream();
+
 		resource.CopyTo(payload);
+
 		return payload.ToArray();
 	}
 
-	// -----------------------------------------------------------------------
-	// KYC exports (ABI marshaling only; JSON shaping lives in KycClient)
-	// -----------------------------------------------------------------------
-
-	internal byte[] KycProviders(int handle, string countriesJson)
-	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument countries = Write(countriesJson, owned);
-			return TakeBytes(Invoke<int, int, int, int>(
-				"keeta_kyc_providers", handle, countries.Pointer, countries.Length));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
-	}
+	internal byte[] KycProviders(int handle, string countriesJson) =>
+		WithHandleAndText("keeta_kyc_providers", handle, countriesJson);
 
 	internal byte[] KycCreateVerification(int handle, string providerJson, string countriesJson, string redirect)
 	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument provider = Write(providerJson, owned);
-			Argument countries = Write(countriesJson, owned);
-			Argument target = Write(redirect, owned);
-			return TakeBytes(Invoke<int, int, int, int, int, int, int, int>(
-				"keeta_kyc_create_verification",
-				handle,
-				provider.Pointer, provider.Length,
-				countries.Pointer, countries.Length,
-				target.Pointer, target.Length));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
+		using var arguments = new ArgumentScope(this);
+		Argument provider = arguments.Write(providerJson);
+		Argument countries = arguments.Write(countriesJson);
+		Argument target = arguments.Write(redirect);
+
+		int result = Invoke<int, int, int, int, int, int, int, int>("keeta_kyc_create_verification", handle, provider.Pointer, provider.Length, countries.Pointer, countries.Length, target.Pointer, target.Length);
+		return TakeBytes(result);
 	}
 
 	internal byte[] KycGetCertificates(int handle, string providerJson, string id) =>
-		WithProviderAndId("keeta_kyc_get_certificates", handle, providerJson, id);
+		WithProviderAndArg("keeta_kyc_get_certificates", handle, providerJson, id);
 
 	internal byte[] KycGetVerificationStatus(int handle, string providerJson, string id) =>
-		WithProviderAndId("keeta_kyc_get_verification_status", handle, providerJson, id);
+		WithProviderAndArg("keeta_kyc_get_verification_status", handle, providerJson, id);
 
 	internal void KycFree(int handle) => Free("keeta_kyc_free", handle);
-
-	/// <summary>Drive an export taking a provider and a verification id.</summary>
-	private byte[] WithProviderAndId(string export, int handle, string providerJson, string id)
-	{
-		var owned = new List<Argument>();
-		try
-		{
-			Argument provider = Write(providerJson, owned);
-			Argument identifier = Write(id, owned);
-			return TakeBytes(Invoke<int, int, int, int, int, int>(
-				export, handle, provider.Pointer, provider.Length, identifier.Pointer, identifier.Length));
-		}
-		finally
-		{
-			FreeAll(owned);
-		}
-	}
-
-	// -----------------------------------------------------------------------
-	// Host imports
-	// -----------------------------------------------------------------------
 
 	private void DefineHostImports()
 	{
@@ -179,7 +131,9 @@ public sealed partial class WasmRuntime : IDisposable
 	private int HostFetch(Caller caller, int requestPtr, int requestLen)
 	{
 		Memory memory = caller.GetMemory(MemoryExport)!;
-		byte[] request = memory.GetSpan((uint)requestPtr, requestLen).ToArray();
+		Span<byte> source = memory.GetSpan((uint)requestPtr, requestLen);
+		byte[] request = source.ToArray();
+
 		_pending = PerformHttp(request);
 		return _pending.Length;
 	}
@@ -188,7 +142,8 @@ public sealed partial class WasmRuntime : IDisposable
 	private void HostTake(Caller caller, int responsePtr)
 	{
 		Memory memory = caller.GetMemory(MemoryExport)!;
-		_pending.AsSpan().CopyTo(memory.GetSpan((uint)responsePtr, _pending.Length));
+		Span<byte> destination = memory.GetSpan((uint)responsePtr, _pending.Length);
+		_pending.AsSpan().CopyTo(destination);
 		_pending = Array.Empty<byte>();
 	}
 
@@ -205,13 +160,15 @@ public sealed partial class WasmRuntime : IDisposable
 	{
 		try
 		{
-			HostRequest request = JsonSerializer.Deserialize<HostRequest>(requestJson, HostJson)
+			HostRequest request = JsonSerializer.Deserialize<HostRequest>(requestJson, KeetaJson.Options)
 				?? throw new KeetaException("HOST", "empty host request");
 
-			using var message = new HttpRequestMessage(new HttpMethod(request.Method), request.Url);
+			var method = new HttpMethod(request.Method);
+			using var message = new HttpRequestMessage(method, request.Url);
 			if (request.Body is not null)
 			{
-				message.Content = new ByteArrayContent(Convert.FromBase64String(request.Body));
+				byte[] requestBody = Convert.FromBase64String(request.Body);
+				message.Content = new ByteArrayContent(requestBody);
 				message.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
 			}
 
@@ -219,48 +176,95 @@ public sealed partial class WasmRuntime : IDisposable
 
 			using HttpResponseMessage response = _http.Send(message);
 			byte[] body = response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
-			string? retryAfter = response.Headers.TryGetValues("Retry-After", out IEnumerable<string>? values)
-				? values.FirstOrDefault()
-				: null;
 
+			string? retryAfter = null;
+			if (response.Headers.TryGetValues("Retry-After", out IEnumerable<string>? values))
+			{
+				retryAfter = values.FirstOrDefault();
+			}
+
+			string encodedBody = Convert.ToBase64String(body);
 			var payload = new HostResponse
 			{
 				Status = (ushort)(int)response.StatusCode,
-				Body = Convert.ToBase64String(body),
+				Body = encodedBody,
 				RetryAfter = retryAfter,
 			};
 
-			return JsonSerializer.SerializeToUtf8Bytes(payload, HostJson);
+			return JsonSerializer.SerializeToUtf8Bytes(payload, KeetaJson.Options);
 		}
 		catch (Exception error)
 		{
 			var payload = new HostResponse { Error = error.Message };
-			return JsonSerializer.SerializeToUtf8Bytes(payload, HostJson);
+			return JsonSerializer.SerializeToUtf8Bytes(payload, KeetaJson.Options);
 		}
 	}
 
-	// -----------------------------------------------------------------------
-	// Memory marshaling
-	// -----------------------------------------------------------------------
-
 	/// <summary>Copy a UTF-8 string into a fresh guest buffer.</summary>
-	private Argument Write(string value, List<Argument> owned)
+	private Argument Write(string value, List<Argument> owned) =>
+		WriteBytes(Encoding.UTF8.GetBytes(value), owned);
+
+	/// <summary>Drive an export taking a client handle and one UTF-8 argument.</summary>
+	private byte[] WithHandleAndText(string export, int handle, string value)
 	{
-		EnsureUsable();
-		byte[] bytes = Encoding.UTF8.GetBytes(value);
-		int pointer = _alloc(bytes.Length);
+		using var arguments = new ArgumentScope(this);
+		Argument argument = arguments.Write(value);
 
-		// Register the allocation before touching guest memory so a copy
-		// failure cannot leak the buffer.
-		var argument = new Argument(pointer, bytes.Length);
-		owned.Add(argument);
+		int result = Invoke<int, int, int, int>(export, handle, argument.Pointer, argument.Length);
+		return TakeBytes(result);
+	}
 
-		if (bytes.Length > 0)
-		{
-			bytes.AsSpan().CopyTo(_memory.GetSpan(pointer, bytes.Length));
-		}
+	/// <summary>Drive an export taking a client handle, a provider, and one argument.</summary>
+	private byte[] WithProviderAndArg(string export, int handle, string providerJson, string argument)
+	{
+		using var arguments = new ArgumentScope(this);
+		Argument provider = arguments.Write(providerJson);
+		Argument value = arguments.Write(argument);
 
-		return argument;
+		int result = Invoke<int, int, int, int, int, int>(export, handle, provider.Pointer, provider.Length, value.Pointer, value.Length);
+		return TakeBytes(result);
+	}
+
+	/// <summary>Build a networked client bound to a node URL, a metadata root, and a signer.</summary>
+	private int ClientWithAccount(string export, string nodeUrl, string root, int accountHandle)
+	{
+		using var arguments = new ArgumentScope(this);
+		Argument node = arguments.Write(nodeUrl);
+		Argument anchor = arguments.Write(root);
+
+		int result = Invoke<int, int, int, int, int, int>(export, node.Pointer, node.Length, anchor.Pointer, anchor.Length, accountHandle);
+		return TakeHandle(result);
+	}
+
+	/// <summary>Parse a binary payload resolved with a principal handle set, returning an object handle.</summary>
+	private int ParseBytesWithPrincipals(string export, byte[] data, int[] principals)
+	{
+		using var arguments = new ArgumentScope(this);
+		Argument payload = arguments.WriteBytes(data);
+		Argument keys = arguments.WriteHandles(principals);
+
+		int result = Invoke<int, int, int, int, int>(export, payload.Pointer, payload.Length, keys.Pointer, keys.Length);
+		return TakeHandle(result);
+	}
+
+	/// <summary>Grant a principal handle set access to a sealed object.</summary>
+	private void GrantAccess(string export, int handle, int[] principals)
+	{
+		using var arguments = new ArgumentScope(this);
+		Argument keys = arguments.WriteHandles(principals);
+
+		int result = Invoke<int, int, int, int>(export, handle, keys.Pointer, keys.Length);
+		TakeFlag(result);
+	}
+
+	/// <summary>Revoke the principal identified by a type-prefixed public key.</summary>
+	private void RevokeAccess(string export, int handle, byte[] publicKey)
+	{
+		using var arguments = new ArgumentScope(this);
+		Argument key = arguments.WriteBytes(publicKey);
+
+		int result = Invoke<int, int, int, int>(export, handle, key.Pointer, key.Length);
+		TakeFlag(result);
 	}
 
 	/// <summary>
@@ -281,13 +285,29 @@ public sealed partial class WasmRuntime : IDisposable
 	/// Resolve an object-handle result: <c>0</c> signals failure (raise the
 	/// pending last error), otherwise return the live handle.
 	/// </summary>
-	private int TakeHandle(int handle) => handle != 0 ? handle : throw LastError();
+	private int TakeHandle(int handle)
+	{
+		if (handle == 0)
+		{
+			throw LastError();
+		}
+
+		return handle;
+	}
 
 	/// <summary>
 	/// Resolve a tri-state predicate result (<c>1</c>/<c>0</c>/<c>-1</c>): a
 	/// negative value signals failure (raise the pending last error).
 	/// </summary>
-	private bool TakeFlag(int result) => result < 0 ? throw LastError() : result != 0;
+	private bool TakeFlag(int result)
+	{
+		if (result < 0)
+		{
+			throw LastError();
+		}
+
+		return result != 0;
+	}
 
 	/// <summary>Copy a bytes handle's payload into a managed array and free it.</summary>
 	private byte[] ReadAndFreeBytes(int handle)
@@ -296,7 +316,12 @@ public sealed partial class WasmRuntime : IDisposable
 		{
 			int pointer = _bytesPtr(handle);
 			int length = _bytesLen(handle);
-			return length > 0 ? _memory.GetSpan(pointer, length).ToArray() : Array.Empty<byte>();
+			if (length == 0)
+			{
+				return Array.Empty<byte>();
+			}
+
+			return _memory.GetSpan(pointer, length).ToArray();
 		}
 		finally
 		{
@@ -309,12 +334,29 @@ public sealed partial class WasmRuntime : IDisposable
 	{
 		string code = ReadErrorPart(_lastErrorCode());
 		string message = ReadErrorPart(_lastErrorMessage());
-		return new KeetaException(code.Length > 0 ? code : "UNKNOWN", message.Length > 0 ? message : "operation failed");
+		if (code.Length == 0)
+		{
+			code = "UNKNOWN";
+		}
+
+		if (message.Length == 0)
+		{
+			message = "operation failed";
+		}
+
+		return new KeetaException(code, message);
 	}
 
 	/// <summary>Read one optional last-error part (an empty string when absent).</summary>
-	private string ReadErrorPart(int handle) =>
-		handle == 0 ? string.Empty : Encoding.UTF8.GetString(ReadAndFreeBytes(handle));
+	private string ReadErrorPart(int handle)
+	{
+		if (handle == 0)
+		{
+			return string.Empty;
+		}
+
+		return Encoding.UTF8.GetString(ReadAndFreeBytes(handle));
+	}
 
 	private void FreeAll(List<Argument> owned)
 	{
@@ -337,10 +379,7 @@ public sealed partial class WasmRuntime : IDisposable
 	/// </summary>
 	private void EnsureUsable()
 	{
-		if (_disposed)
-		{
-			throw new KeetaException("DISPOSED", "the runtime has been disposed");
-		}
+		ObjectDisposedException.ThrowIf(_disposed, this);
 
 		if (Environment.CurrentManagedThreadId != _ownerThread)
 		{
@@ -368,6 +407,27 @@ public sealed partial class WasmRuntime : IDisposable
 
 	/// <summary>A guest buffer the host owns until it frees it.</summary>
 	private readonly record struct Argument(int Pointer, int Length);
+
+	/// <summary>
+	/// The guest buffers one call owns, freed together when the scope closes.
+	/// Replaces the per-call <c>try/finally FreeAll</c> scaffold with a
+	/// <c>using</c> statement.
+	/// </summary>
+	private sealed class ArgumentScope : IDisposable
+	{
+		private readonly WasmRuntime _runtime;
+		private readonly List<Argument> _owned = new();
+
+		public ArgumentScope(WasmRuntime runtime) => _runtime = runtime;
+
+		public Argument Write(string value) => _runtime.Write(value, _owned);
+
+		public Argument WriteBytes(byte[] value) => _runtime.WriteBytes(value, _owned);
+
+		public Argument WriteHandles(int[] handles) => _runtime.WriteHandles(handles, _owned);
+
+		public void Dispose() => _runtime.FreeAll(_owned);
+	}
 
 	private sealed class HostRequest
 	{
