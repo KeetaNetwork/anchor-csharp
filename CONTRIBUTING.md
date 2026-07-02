@@ -9,6 +9,31 @@
 
 Always drive tasks through the `Makefile`, never raw `dotnet`.
 
+## Testing
+
+`make test` runs both suites: the unit tests (`tests/KeetaNet.Anchor.Tests`) and the e2e tests (`tests/KeetaNet.Anchor.E2eTests`), which drive the reference TypeScript anchor through the harness in `tests/node-harness`.
+
+The e2e suite needs:
+
+- Node.js 20.
+- Access to the `@keetanetwork` scope on GitHub Packages. `tests/node-harness/.npmrc` routes the scope to `npm.pkg.github.com`; authenticate with a token that has `read:packages` (locally via `npm login --registry=https://npm.pkg.github.com`, in CI via `NODE_AUTH_TOKEN`).
+
+`make node-harness` installs and compiles the harness; `make test` runs it automatically.
+
+To run a subset, use the xUnit v3 filter flags (Microsoft.Testing.Platform syntax after `--`, not VSTest `--filter`):
+
+```sh
+# One class
+dotnet test tests/KeetaNet.Anchor.E2eTests/KeetaNet.Anchor.E2eTests.csproj -c Release \
+    -- --filter-class "*KycInteropTests"
+
+# One method (fully qualified; '*' wildcards allowed)
+dotnet test tests/KeetaNet.Anchor.E2eTests/KeetaNet.Anchor.E2eTests.csproj -c Release \
+    -- --filter-method "*CsharpReadsAndProvesTheTypescriptIssuedLeaf"
+```
+
+Tests quarantined for known upstream divergences are marked `Skip` with the reason inline; do not re-enable them without the upstream fix.
+
 ## Conventions
 
 - Public API changes require a documentation comment on every new public member (`GenerateDocumentationFile` is on).
