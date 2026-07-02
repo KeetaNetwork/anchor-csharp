@@ -14,7 +14,7 @@ C# SDK for the KeetaNet anchor. The client logic runs inside a sandboxed WebAsse
 - Rust with the `wasm32-wasip1` target, for `make wasm` only (`rustup target add wasm32-wasip1`). NuGet consumers do not need Rust: the wasm core ships embedded in the package.
 - Node.js 20 and a GitHub Packages token, for `make test` only (the e2e suite drives the reference TypeScript anchor; see [CONTRIBUTING](CONTRIBUTING.md)).
 
-## Quick start
+## Quick Start
 
 ```sh
 make developer   # verify SDK, restore, build, run tests
@@ -36,7 +36,7 @@ Use the `Makefile`, not raw `dotnet`, for every task:
 
 ## Usage
 
-### The runtime
+### The Runtime
 
 Everything starts from a `WasmRuntime`, which loads the embedded wasm core and owns the dispatcher thread all calls serialize onto. Create one per application and dispose it last: every object below borrows it.
 
@@ -76,7 +76,7 @@ byte[] plaintext = signer.Decrypt(ciphertext);
 using Account watcher = Account.FromAddress(runtime, signer.Address);
 ```
 
-### KYC verification flow
+### KYC Verification
 
 `KycClient` discovers providers from on-chain service metadata (read through a node API), then drives a verification end to end. Requests are signed by the bound account. Discovery, signing, retries, and polling all run inside the core.
 
@@ -104,7 +104,7 @@ Certificates issued = outcome.Ready!;
 string leafPem = issued.Results[0].Value;
 ```
 
-### Reading KYC certificates
+### Reading KYC Certificates
 
 A `KycCertificate` is an issued leaf: a base X.509 certificate plus KYC attributes, some plain and some encrypted to the subject. Verify it against the provider's CA, then read attributes with the subject account.
 
@@ -131,7 +131,7 @@ string birthDate = leaf.GetText("dateOfBirth", subject); // ISO-8601 timestamp
 JsonElement address = leaf.GetJson("address", subject);
 ```
 
-### Selective disclosure with proofs
+### Selective Disclosure with Proofs
 
 A holder can attest to one sensitive attribute without revealing the private key. `Prove` decrypts the attribute and produces an `AttributeProof`. Anyone holding the leaf validates it with only the subject's public key.
 
@@ -144,7 +144,7 @@ using Account subjectPublic = Account.FromAddress(runtime, subjectAddress);
 bool attested = leaf.ValidateProof("email", subjectPublic, proof);
 ```
 
-### Issuing KYC certificates
+### Issuing KYC Certificates
 
 `KycCertificateBuilder` issues a signed leaf directly: set the subject (sensitive attributes encrypt to its key), the issuer (signs), a validity window, and the attributes. A read-only subject account suffices; only the issuer needs a private key.
 
@@ -165,7 +165,7 @@ using KycCertificate issued = KycCertificate.Builder(runtime)
 string pem = issued.Pem();
 ```
 
-### Sharable attribute bundles
+### Sharable Attribute Bundles
 
 `SharableCertificateAttributes` re-packages a chosen subset of a leaf's attributes for a third party: the subject proves or copies each named attribute, seals the bundle, and grants recipients. The recipient opens it without the subject's key and reads only the disclosed attributes.
 
@@ -185,7 +185,7 @@ byte[]? email = opened.AttributeBuffer("email"); // null when not disclosed
 using KycCertificate embeddedLeaf = opened.LeafCertificate();
 ```
 
-### Encrypted containers
+### Encrypted Containers
 
 `EncryptedContainer` is a hybrid-encrypted, optionally signed blob: sealed to a set of principal accounts, with a detached signature over the compressed payload. Use it to move arbitrary bytes between accounts.
 
@@ -204,7 +204,7 @@ bool signatureValid = opened.VerifySignature();
 byte[]? signerKey = opened.SigningAccount(); // type-prefixed public key, null when unsigned
 ```
 
-### Asset movement
+### Asset Movement
 
 `AssetMovementClient` discovers asset-movement providers and drives transfers, persistent forwarding, and KYC sharing. Simulated and initiated transfers return fluent objects bound to their provider and id.
 
