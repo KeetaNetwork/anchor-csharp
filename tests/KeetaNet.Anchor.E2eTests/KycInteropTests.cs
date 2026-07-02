@@ -45,7 +45,7 @@ public sealed class KycInteropTests
 		harness.Shutdown();
 	}
 
-	[Fact(Skip = "known certificate-hash divergence: the core verifies ECDSA certificate signatures over SHA2-256 while the TS reference signs over SHA3-256, so a TS-issued chain never validates; quarantined pending an upstream fix")]
+	[Fact]
 	public void CsharpVerifiesTheTypescriptIssuedChain()
 	{
 		using var harness = NodeHarness.Spawn("kyc");
