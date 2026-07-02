@@ -4,5 +4,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/KeetaNet.Anchor.Tests/KeetaNet.Anchor.Tests.csproj" />
+    <Project Path="tests/KeetaNet.Anchor.E2eTests/KeetaNet.Anchor.E2eTests.csproj" />
   </Folder>
 </Solution>

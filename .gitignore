@@ -21,6 +21,10 @@ coverage*.info
 wasm/
 .wasm-build/
 
+# Node harness build output
+node_modules/
+dist/
+
 # IDE
 .vs/
 .vscode/

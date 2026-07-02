@@ -12,6 +12,9 @@ env:
 jobs:
   build-test:
     name: Build & Test (${{ matrix.os }})
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -26,7 +29,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           toolchain: "1.94.0"
           targets: wasm32-wasip1
@@ -40,9 +43,23 @@ jobs:
             .wasm-build
           key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@keetanetwork"
+
       - name: Build wasm core
         shell: bash
         run: bash scripts/build-wasm.sh
+
+      - name: Build node harness
+        shell: bash
+        run: npm ci && npm run build
+        working-directory: tests/node-harness
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Restore
         run: dotnet restore KeetaNet.Anchor.slnx
@@ -56,6 +73,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest-l
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -64,11 +84,17 @@ jobs:
         with:
           global-json-file: global.json
 
-      - name: Verify formatting
-        run: dotnet format KeetaNet.Anchor.slnx --verify-no-changes
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@keetanetwork"
 
-      - name: Spellcheck
-        run: npx --yes cspell --config cspell.yaml --no-progress "src/**/*.cs" "tests/**/*.cs" "scripts/**" "Makefile" "*.md"
+      - name: Check formatting and linting
+        run: make lint
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   pack:
     name: Pack
@@ -82,7 +108,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           toolchain: "1.94.0"
           targets: wasm32-wasip1
@@ -145,7 +171,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
         with:
           toolchain: "1.94.0"
           targets: wasm32-wasip1
@@ -164,7 +190,7 @@ jobs:
 
       - name: Test with coverage
         run: >
-          dotnet test KeetaNet.Anchor.slnx -c Release
+          dotnet test tests/KeetaNet.Anchor.Tests/KeetaNet.Anchor.Tests.csproj -c Release
           -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
 
       - name: Convert coverage to SonarQube format
@@ -176,7 +202,7 @@ jobs:
             "-reporttypes:SonarQube"
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402 # v4.2.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

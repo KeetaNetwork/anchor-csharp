@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<OutputType>Exe</OutputType>
+		<IsPackable>false</IsPackable>
+		<IsTestProject>true</IsTestProject>
+		<UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="xunit.v3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="../../src/KeetaNet.Anchor/KeetaNet.Anchor.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Locates the compiled TS harness regardless of the test output directory. -->
+		<AssemblyMetadata Include="HarnessDist" Value="$(MSBuildProjectDirectory)/../node-harness/dist" />
+	</ItemGroup>
+
+</Project>

@@ -7,23 +7,25 @@ ignorePaths:
   - "**/*.lock"
   - .github/**
   - src/KeetaNet.Anchor/Generated/**
+  - tests/node-harness/node_modules/**
+  - tests/node-harness/dist/**
+  - tests/node-harness/package-lock.json
 words:
-  - KeetaNet
   - keeta
+  - keetanet
   - keetanetwork
   - keetapay
   - anchor
   - csharp
   - dotnet
-  - NuGet
+  - nuget
   - nupkg
   - snupkg
   - wasm
-  - WASI
+  - wasi
   - wasip1
   - wasip2
   - wasmtime
-  - Wasmtime
   - xunit
   - coverlet
   - kyc
@@ -32,12 +34,12 @@ words:
   - secp256k1
   - secp256r1
   - passphrase
-  - PEM
+  - pem
   - roslyn
   - sourcelink
-  - Deterministic
-  - Sonar
-  - SonarCloud
+  - deterministic
+  - sonar
+  - sonarcloud
   - rustup
   - finalizer
   - finalizers
@@ -46,9 +48,9 @@ words:
   - cobertura
   - ciphertext
   - millis
-  - Millis
   - pems
   - dtos
-  - Oldsmar
-  - IDISP
-  - Lifecycles
+  - oldsmar
+  - belgrave
+  - idisp
+  - lifecycles
