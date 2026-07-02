@@ -7,7 +7,7 @@ namespace KeetaNet.Anchor.Tests;
 
 /// <summary>
 /// The fluent KYC leaf builder: issue a leaf, then read every attribute shape
-/// back through a re-parse — plain scalar, decrypted scalar, decrypted date,
+/// back through a re-parse - plain scalar, decrypted scalar, decrypted date,
 /// and decrypted structured value.
 /// </summary>
 public sealed class IssueTests

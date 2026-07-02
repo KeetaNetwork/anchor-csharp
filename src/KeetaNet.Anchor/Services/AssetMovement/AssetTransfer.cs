@@ -33,7 +33,10 @@ public sealed class AssetSimulatedTransfer
 	/// A simulation may omit the recipient; supply <paramref name="recipient"/>
 	/// here to complete the destination before initiating.
 	/// </summary>
-	public AssetTransfer CreateTransfer(object? recipient = null, string? depositMessage = null)
+	public Task<AssetTransfer> CreateTransferAsync(
+		object? recipient = null,
+		string? depositMessage = null,
+		CancellationToken cancellationToken = default)
 	{
 		AssetTransferDestination to = _request.To with
 		{
@@ -42,7 +45,7 @@ public sealed class AssetSimulatedTransfer
 		};
 		AssetTransferRequest request = _request with { To = to };
 
-		return _client.InitiateTransfer(_provider, request);
+		return _client.InitiateTransferAsync(_provider, request, cancellationToken);
 	}
 }
 
@@ -75,12 +78,15 @@ public sealed class AssetTransfer
 	public IReadOnlyList<JsonElement> InstructionChoices { get; }
 
 	/// <summary>Read this transfer's current status.</summary>
-	public AssetTransferStatus GetStatus() => _client.TransferStatus(_provider, Id);
+	public Task<AssetTransferStatus> GetStatusAsync(CancellationToken cancellationToken = default) =>
+		_client.TransferStatusAsync(_provider, Id, cancellationToken);
 
 	/// <summary>Execute a fiat pull <paramref name="instruction"/> for this transfer.</summary>
-	public AssetTransferStatus Execute(AssetPullInstruction instruction)
+	public Task<AssetTransferStatus> ExecuteAsync(
+		AssetPullInstruction instruction,
+		CancellationToken cancellationToken = default)
 	{
 		var request = new AssetExecuteRequest(Id, instruction);
-		return _client.ExecuteTransfer(_provider, request);
+		return _client.ExecuteTransferAsync(_provider, request, cancellationToken);
 	}
 }

@@ -4,7 +4,10 @@ namespace KeetaNet.Anchor;
 
 /// <summary>
 /// A KYC anchor client bound to a signer and a metadata root. Discovery, request
-/// signing, retries, and polling all run inside the wasm core.
+/// signing, retries, and polling all run inside the wasm core. The client is
+/// thread-safe: operations serialize onto the runtime's dispatcher, and every
+/// networked method honors its <see cref="CancellationToken"/> before dispatch
+/// and during host HTTP and sleeps.
 /// </summary>
 public sealed class KycClient : IDisposable
 {
@@ -30,10 +33,13 @@ public sealed class KycClient : IDisposable
 	}
 
 	/// <summary>Every provider that serves all <paramref name="countries"/> (ISO codes).</summary>
-	public IReadOnlyList<KycProvider> Providers(IEnumerable<string> countries)
+	public async Task<IReadOnlyList<KycProvider>> ProvidersAsync(
+		IEnumerable<string> countries,
+		CancellationToken cancellationToken = default)
 	{
-		string countriesJson = JsonSerializer.Serialize(countries.ToArray(), KeetaJson.Options);
-		byte[] payload = _runtime.KycProviders(_handle, countriesJson);
+		string countriesJson = SerializeCountries(countries);
+		byte[] payload = await _runtime.KycProviders(_handle, countriesJson, cancellationToken).ConfigureAwait(false);
+
 		return KeetaJson.ReadList<KycProvider>(payload);
 	}
 
@@ -42,24 +48,33 @@ public sealed class KycClient : IDisposable
 	/// <paramref name="countries"/>, optionally redirecting the user to
 	/// <paramref name="redirect"/> when the flow ends.
 	/// </summary>
-	public VerificationOutcome CreateVerification(
+	public async Task<VerificationOutcome> CreateVerificationAsync(
 		KycProvider provider,
 		IEnumerable<string> countries,
-		string? redirect = null)
+		string? redirect = null,
+		CancellationToken cancellationToken = default)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
-		string countriesJson = JsonSerializer.Serialize(countries.ToArray(), KeetaJson.Options);
+		string countriesJson = SerializeCountries(countries);
 
-		byte[] payload = _runtime.KycCreateVerification(_handle, providerJson, countriesJson, redirect ?? "");
+		byte[] payload = await _runtime
+			.KycCreateVerification(_handle, providerJson, countriesJson, redirect ?? "", cancellationToken)
+			.ConfigureAwait(false);
+
 		return ParseOutcome<Verification, VerificationOutcome>(payload, "verification", ready => new VerificationOutcome(ready, null), retry => new VerificationOutcome(null, retry));
 	}
 
 	/// <summary>Fetch the certificates issued for verification <paramref name="id"/>.</summary>
-	public CertificatesOutcome GetCertificates(KycProvider provider, string id)
+	public async Task<CertificatesOutcome> GetCertificatesAsync(
+		KycProvider provider,
+		string id,
+		CancellationToken cancellationToken = default)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
+		byte[] payload = await _runtime
+			.KycGetCertificates(_handle, providerJson, id, cancellationToken)
+			.ConfigureAwait(false);
 
-		byte[] payload = _runtime.KycGetCertificates(_handle, providerJson, id);
 		return ParseOutcome<Certificates, CertificatesOutcome>(payload, "certificates", ready => new CertificatesOutcome(ready, null), retry => new CertificatesOutcome(null, retry));
 	}
 
@@ -69,13 +84,21 @@ public sealed class KycClient : IDisposable
 		Crypto.Certificate.Parse(_runtime, provider.Ca);
 
 	/// <summary>Read the status of verification <paramref name="id"/>.</summary>
-	public StatusOutcome GetVerificationStatus(KycProvider provider, string id)
+	public async Task<StatusOutcome> GetVerificationStatusAsync(
+		KycProvider provider,
+		string id,
+		CancellationToken cancellationToken = default)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
+		byte[] payload = await _runtime
+			.KycGetVerificationStatus(_handle, providerJson, id, cancellationToken)
+			.ConfigureAwait(false);
 
-		byte[] payload = _runtime.KycGetVerificationStatus(_handle, providerJson, id);
 		return ParseOutcome<VerificationStatus, StatusOutcome>(payload, "status", ready => new StatusOutcome(ready, null), retry => new StatusOutcome(null, retry));
 	}
+
+	private static string SerializeCountries(IEnumerable<string> countries) =>
+		JsonSerializer.Serialize(countries.ToArray(), KeetaJson.Options);
 
 	/// <summary>
 	/// Shape a pending-or-ready outcome: a <c>retry</c> object yields
