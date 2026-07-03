@@ -61,14 +61,14 @@ shim_rustfmt_for_windows() {
 
 # MSYS transparently resolves an extension-less `rustfmt` path to
 # `rustfmt.exe`, so POSIX tools cannot create the bare copy (cp reports
-# "same file") and `-f` checks lie. Copy with Windows-native cmd, which
-# writes the literal name, and verify via directory entries.
+# "same file") and `-f` checks lie. Copy with PowerShell, which uses the
+# literal name, and verify via directory entries.
 copy_bare_rustfmt() {
 	local bin_dir="$1"
 	local src dest
 	src="$(cygpath -w "${bin_dir}/rustfmt.exe")"
 	dest="$(cygpath -w "${bin_dir}/rustfmt")"
-	MSYS2_ARG_CONV_EXCL="*" cmd /c copy /y "${src}" "${dest}" >/dev/null
+	powershell -NoProfile -Command "Copy-Item -LiteralPath '${src}' -Destination '${dest}' -Force"
 
 	if [[ -z "$(find "${bin_dir}" -maxdepth 1 -name rustfmt)" ]]; then
 		echo "build-wasm: failed to shim bare rustfmt in ${bin_dir}" >&2

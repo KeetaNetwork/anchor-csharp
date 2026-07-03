@@ -64,6 +64,5 @@ words:
   - compgen
   - codegen
   - msys
-  - conv
-  - excl
   - maxdepth
+  - powershell
