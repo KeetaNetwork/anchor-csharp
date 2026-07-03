@@ -64,7 +64,7 @@ public sealed class ContainerTests
 
 		byte[]? recovered = restored.GetSigningAccount();
 		Assert.NotNull(recovered);
-		Assert.Equal(signer.PublicKey, Convert.ToHexString(recovered!), ignoreCase: true);
+		Assert.Equal(signer.PublicKeyAndType, Convert.ToHexString(recovered!), ignoreCase: true);
 	}
 
 	[Fact]
@@ -79,7 +79,7 @@ public sealed class ContainerTests
 		container.GrantAccess(new[] { reader });
 		Assert.Equal(2, container.GetPrincipals().Count);
 
-		byte[] readerKey = Convert.FromHexString(reader.PublicKey);
+		byte[] readerKey = Convert.FromHexString(reader.PublicKeyAndType);
 		container.RevokeAccess(readerKey);
 		Assert.Single(container.GetPrincipals());
 	}

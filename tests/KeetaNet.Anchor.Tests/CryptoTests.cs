@@ -61,10 +61,8 @@ public sealed class CryptoTests
 		Assert.True(fromAccount.Verify(message, signature));
 		Assert.Throws<KeetaException>(() => fromAccount.Sign(message));
 
-		// `PublicKey` is type-prefixed transport hex. `FromPublicKey` takes the
-		// raw key with the algorithm named separately, so drop the type byte.
-		string rawPublicKey = signer.PublicKey[2..];
-		using Account fromPublicKey = runtime.Accounts.FromPublicKey(rawPublicKey, TestSeeds.DefaultAlgorithm);
+		// The type-prefixed transport key round-trips to the same identity.
+		using Account fromPublicKey = runtime.Accounts.FromPublicKeyAndType(signer.PublicKeyAndType);
 		Assert.Equal(signer.Address, fromPublicKey.Address);
 		Assert.True(fromPublicKey.Verify(message, signature));
 	}
@@ -81,10 +79,32 @@ public sealed class CryptoTests
 		byte[] signature = imported.Sign(message);
 		Assert.True(imported.Verify(message, signature));
 
-		// The public half round-trips to the same on-ledger identity.
-		string rawPublicKey = imported.PublicKey[2..];
+		// The raw public half plus its algorithm names the same on-ledger identity.
+		string rawPublicKey = imported.PublicKeyAndType[2..];
 		using Account publicHalf = runtime.Accounts.FromPublicKey(rawPublicKey, TestSeeds.DefaultAlgorithm);
 		Assert.Equal(imported.Address, publicHalf.Address);
+	}
+
+	[Fact]
+	public void IdentifierTypedPublicKeysAreRejectedWithACodedError()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account signer = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+
+		// A token identifier (type byte 3) carries no signing key, so the
+		// factory must refuse it rather than mislabel the algorithm.
+		string tokenTyped = "03" + signer.PublicKeyAndType[2..];
+		KeetaException rejected = Assert.Throws<KeetaException>(() =>
+		{
+			using Account unexpected = runtime.Accounts.FromPublicKeyAndType(tokenTyped);
+		});
+		Assert.Equal("INVALID_ALGORITHM", rejected.Code);
+
+		KeetaException notHex = Assert.Throws<KeetaException>(() =>
+		{
+			using Account unexpected = runtime.Accounts.FromPublicKeyAndType("not hex");
+		});
+		Assert.Equal("INVALID_PUBLIC_KEY", notHex.Code);
 	}
 
 	[Fact]
@@ -133,7 +153,7 @@ public sealed class CryptoTests
 		Assert.Equal("12345", certificate.Serial);
 		Assert.True(certificate.NotBefore < certificate.NotAfter);
 		Assert.InRange(KycFixture.ValidAt, certificate.NotBefore, certificate.NotAfter);
-		Assert.Equal(subject.PublicKey, certificate.SubjectPublicKey);
+		Assert.Equal(subject.PublicKeyAndType, certificate.SubjectPublicKey);
 	}
 
 	[Fact]
@@ -146,10 +166,10 @@ public sealed class CryptoTests
 		Assert.NotEmpty(der);
 
 		// Both transport encodings describe the same certificate.
-		using CryptoCertificate reparsed = runtime.Certificates.ParseDer(der);
-		Assert.Equal(parsed.Serial, reparsed.Serial);
-		Assert.Equal(parsed.Subject, reparsed.Subject);
-		Assert.Equal(parsed.ToPem(), reparsed.ToPem());
+		using CryptoCertificate fromDer = runtime.Certificates.ParseDer(der);
+		Assert.Equal(parsed.Serial, fromDer.Serial);
+		Assert.Equal(parsed.Subject, fromDer.Subject);
+		Assert.Equal(parsed.ToPem(), fromDer.ToPem());
 	}
 
 	[Fact]

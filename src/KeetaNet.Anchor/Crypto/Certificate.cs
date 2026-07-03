@@ -54,7 +54,7 @@ public sealed class Certificate : WasmObject
 
 	/// <summary>
 	/// The subject public key, type-prefixed and hex-encoded to match
-	/// <see cref="Account.PublicKey"/>, so a subject can be matched to an account.
+	/// <see cref="Account.PublicKeyAndType"/>, so a subject can be matched to an account.
 	/// </summary>
 	public string SubjectPublicKey => Runtime.CertificateSubjectPublicKey(Handle);
 

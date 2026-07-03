@@ -46,7 +46,7 @@ public sealed class ContainerInteropTests
 
 		byte[]? recoveredSigner = opened.GetSigningAccount();
 		Assert.NotNull(recoveredSigner);
-		Assert.Equal(tsSigner.PublicKey, Convert.ToHexString(recoveredSigner!), ignoreCase: true);
+		Assert.Equal(tsSigner.PublicKeyAndType, Convert.ToHexString(recoveredSigner!), ignoreCase: true);
 	}
 
 	[Fact(Skip = "known zlib compression divergence in the TS reference breaks C#-to-TS signature validation; quarantined pending an upstream compression-parity fix")]
@@ -74,7 +74,7 @@ public sealed class ContainerInteropTests
 		Assert.True(decoded.GetProperty("isSigned").GetBoolean());
 		Assert.True(decoded.GetProperty("signatureValid").GetBoolean());
 		Assert.Equal(
-			signer.PublicKey,
+			signer.PublicKeyAndType,
 			decoded.GetProperty("signerPublicKey").GetString(),
 			ignoreCase: true);
 	}

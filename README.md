@@ -79,7 +79,10 @@ string seed = runtime.Accounts.GenerateRandomSeed();
 using Account signer = runtime.Accounts.FromSeed(seed, index: 0, algorithm: "ed25519");
 
 Console.WriteLine(signer.Address);   // keeta_...
-Console.WriteLine(signer.PublicKey); // type-prefixed hex
+Console.WriteLine(signer.PublicKeyAndType); // type-prefixed hex
+
+// A watch-only view of the same identity, from the transport key.
+using Account watchOnly = runtime.Accounts.FromPublicKeyAndType(signer.PublicKeyAndType);
 
 // Sign and verify.
 byte[] message = "attest this"u8.ToArray();

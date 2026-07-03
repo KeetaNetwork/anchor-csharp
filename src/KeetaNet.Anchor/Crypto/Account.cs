@@ -17,8 +17,12 @@ public sealed class Account : WasmObject
 	/// <summary>The account's algorithm name.</summary>
 	public string Algorithm => Runtime.AccountAlgorithm(Handle);
 
-	/// <summary>The account's type-prefixed public key (hex).</summary>
-	public string PublicKey => Runtime.AccountPublicKey(Handle);
+	/// <summary>
+	/// The account's type-prefixed public key transport hex: the lead byte
+	/// names the algorithm, the rest is the raw public key. Feeds
+	/// <see cref="AccountFactory.FromPublicKeyAndType"/>.
+	/// </summary>
+	public string PublicKeyAndType => Runtime.AccountPublicKey(Handle);
 
 	/// <summary>Sign <paramref name="message"/> with the account's private key.</summary>
 	public byte[] Sign(byte[] message) => Runtime.AccountSign(Handle, message);

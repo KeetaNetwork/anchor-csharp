@@ -58,7 +58,7 @@ public sealed class SharableTests
 
 		IReadOnlyList<byte[]> principals = opened.GetPrincipals();
 		Assert.Single(principals);
-		Assert.Equal(recipient.PublicKey, Convert.ToHexString(principals[0]), ignoreCase: true);
+		Assert.Equal(recipient.PublicKeyAndType, Convert.ToHexString(principals[0]), ignoreCase: true);
 
 		Assert.Equal(2, opened.GetAttributeNames().Count);
 	}
