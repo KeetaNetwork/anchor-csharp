@@ -46,6 +46,62 @@ public sealed class CryptoTests
 	}
 
 	[Fact]
+	public void ReadOnlyAccountsShareTheSignerIdentityButCannotSign()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account signer = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+
+		byte[] message = Encoding.UTF8.GetBytes("watch-only verification");
+		byte[] signature = signer.Sign(message);
+
+		// An address-parsed account is the same identity and verifies the
+		// signer's work, but carries no key material to sign with.
+		using Account fromAccount = runtime.Accounts.FromAccount(signer.Address);
+		Assert.Equal(signer.Address, fromAccount.Address);
+		Assert.True(fromAccount.Verify(message, signature));
+		Assert.Throws<KeetaException>(() => fromAccount.Sign(message));
+
+		// `PublicKey` is type-prefixed transport hex. `FromPublicKey` takes the
+		// raw key with the algorithm named separately, so drop the type byte.
+		string rawPublicKey = signer.PublicKey[2..];
+		using Account fromPublicKey = runtime.Accounts.FromPublicKey(rawPublicKey, TestSeeds.DefaultAlgorithm);
+		Assert.Equal(signer.Address, fromPublicKey.Address);
+		Assert.True(fromPublicKey.Verify(message, signature));
+	}
+
+	[Fact]
+	public void ImportedPrivateKeyYieldsAWorkingSignerWithAStablePublicIdentity()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account imported = runtime.Accounts.FromPrivateKey(TestSeeds.Issuer, TestSeeds.DefaultAlgorithm);
+
+		Assert.StartsWith("keeta_", imported.Address, StringComparison.Ordinal);
+
+		byte[] message = Encoding.UTF8.GetBytes("imported key signer");
+		byte[] signature = imported.Sign(message);
+		Assert.True(imported.Verify(message, signature));
+
+		// The public half round-trips to the same on-ledger identity.
+		string rawPublicKey = imported.PublicKey[2..];
+		using Account publicHalf = runtime.Accounts.FromPublicKey(rawPublicKey, TestSeeds.DefaultAlgorithm);
+		Assert.Equal(imported.Address, publicHalf.Address);
+	}
+
+	[Fact]
+	public void GeneratedSeedsAreUniqueAndDeriveSigners()
+	{
+		using var runtime = WasmRuntime.Load();
+
+		string first = runtime.Accounts.GenerateRandomSeed();
+		string second = runtime.Accounts.GenerateRandomSeed();
+		Assert.NotEqual(first, second);
+
+		using Account account = runtime.Accounts.FromSeed(first, 0, TestSeeds.DefaultAlgorithm);
+		byte[] message = Encoding.UTF8.GetBytes("generated seed signer");
+		Assert.True(account.Verify(message, account.Sign(message)));
+	}
+
+	[Fact]
 	public void GeneratedPassphraseDerivesASigner()
 	{
 		using var runtime = WasmRuntime.Load();
@@ -78,6 +134,22 @@ public sealed class CryptoTests
 		Assert.True(certificate.NotBefore < certificate.NotAfter);
 		Assert.InRange(KycFixture.ValidAt, certificate.NotBefore, certificate.NotAfter);
 		Assert.Equal(subject.PublicKey, certificate.SubjectPublicKey);
+	}
+
+	[Fact]
+	public void FixtureCertificateRoundTripsThroughDer()
+	{
+		using var runtime = WasmRuntime.Load();
+		using CryptoCertificate parsed = runtime.Certificates.Parse(KycFixture.Pem);
+
+		byte[] der = parsed.ToDer();
+		Assert.NotEmpty(der);
+
+		// Both transport encodings describe the same certificate.
+		using CryptoCertificate reparsed = runtime.Certificates.ParseDer(der);
+		Assert.Equal(parsed.Serial, reparsed.Serial);
+		Assert.Equal(parsed.Subject, reparsed.Subject);
+		Assert.Equal(parsed.ToPem(), reparsed.ToPem());
 	}
 
 	[Fact]

@@ -51,4 +51,35 @@ public sealed class IssueTests
 		JsonElement addressPostalCode = decodedAddress.GetProperty("postalCode");
 		Assert.Equal("34677", addressPostalCode.GetString());
 	}
+
+	[Fact]
+	public void WrongShapeAccessorsRejectWithTheDecodeCode()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, "ecdsa_secp256k1");
+
+		using KycCertificate leaf = runtime.KycCertificates.Builder()
+			.Subject(subject)
+			.Issuer(issuer)
+			.SubjectName("Subject")
+			.IssuerName("Issuer")
+			.Serial(7)
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
+			.SetAttribute("email", sensitive: true, "user@example.com")
+			.Build();
+
+		KycAttributeValue email = leaf.GetAttribute("email", subject);
+
+		// An email is neither a timestamp nor JSON; each typed accessor must
+		// refuse with the stable decode code instead of returning garbage.
+		KeetaException notATimestamp = Assert.Throws<KeetaException>(() => email.AsTimestamp());
+		Assert.Equal("ATTRIBUTE_DECODE", notATimestamp.Code);
+
+		KeetaException notJson = Assert.Throws<KeetaException>(() => email.AsJson());
+		Assert.Equal("ATTRIBUTE_DECODE", notJson.Code);
+
+		// The undecoded bytes stay reachable regardless of decode failures.
+		Assert.Equal("user@example.com", Encoding.UTF8.GetString(email.Buffer));
+	}
 }
