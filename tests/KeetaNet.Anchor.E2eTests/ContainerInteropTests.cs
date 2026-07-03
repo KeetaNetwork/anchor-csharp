@@ -35,28 +35,28 @@ public sealed class ContainerInteropTests
 		harness.Shutdown();
 
 		using var runtime = WasmRuntime.Load();
-		using Account principal = Account.FromSeed(runtime, E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
-		using Account tsSigner = Account.FromSeed(runtime, E2eSeeds.Issuer, 0, E2eSeeds.Secp256k1);
-		using EncryptedContainer opened = EncryptedContainer.FromEncrypted(runtime, container, new[] { principal });
+		using Account principal = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account tsSigner = runtime.Accounts.FromSeed(E2eSeeds.Issuer, 0, E2eSeeds.Secp256k1);
+		using EncryptedContainer opened = runtime.Containers.FromEncrypted(container, new[] { principal });
 
-		Assert.Equal(Payload, opened.Plaintext());
+		Assert.Equal(Payload, opened.GetPlaintext());
 		Assert.True(opened.IsEncrypted);
 		Assert.True(opened.IsSigned);
 		Assert.True(opened.VerifySignature());
 
-		byte[]? recoveredSigner = opened.SigningAccount();
+		byte[]? recoveredSigner = opened.GetSigningAccount();
 		Assert.NotNull(recoveredSigner);
-		Assert.Equal(tsSigner.PublicKey, Convert.ToHexString(recoveredSigner!), ignoreCase: true);
+		Assert.Equal(tsSigner.PublicKeyAndType, Convert.ToHexString(recoveredSigner!), ignoreCase: true);
 	}
 
 	[Fact(Skip = "known zlib compression divergence in the TS reference breaks C#-to-TS signature validation; quarantined pending an upstream compression-parity fix")]
 	public void TypescriptDecryptsAndVerifiesTheCsharpContainer()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account principal = Account.FromSeed(runtime, E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
-		using Account signer = Account.FromSeed(runtime, E2eSeeds.Issuer, 0, E2eSeeds.Secp256k1);
-		using EncryptedContainer container = EncryptedContainer.FromPlaintext(runtime, Payload, new[] { principal }, locked: false, signer: signer);
-		byte[] encoded = container.Encoded();
+		using Account principal = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account signer = runtime.Accounts.FromSeed(E2eSeeds.Issuer, 0, E2eSeeds.Secp256k1);
+		using EncryptedContainer container = runtime.Containers.FromPlaintext(Payload, new[] { principal }, locked: false, signer: signer);
+		byte[] encoded = container.GetEncoded();
 
 		using var harness = NodeHarness.Spawn("container");
 		var decodeArguments = new JsonObject
@@ -74,7 +74,7 @@ public sealed class ContainerInteropTests
 		Assert.True(decoded.GetProperty("isSigned").GetBoolean());
 		Assert.True(decoded.GetProperty("signatureValid").GetBoolean());
 		Assert.Equal(
-			signer.PublicKey,
+			signer.PublicKeyAndType,
 			decoded.GetProperty("signerPublicKey").GetString(),
 			ignoreCase: true);
 	}

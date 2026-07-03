@@ -35,6 +35,7 @@ words:
   - secp256r1
   - passphrase
   - pem
+  - sharables
   - roslyn
   - sourcelink
   - deterministic
@@ -48,9 +49,20 @@ words:
   - cobertura
   - ciphertext
   - millis
+  - undecoded
   - pems
   - dtos
   - oldsmar
   - belgrave
   - idisp
   - lifecycles
+  - tlsv
+  - rasn
+  - rustfmt
+  - userprofile
+  - cygpath
+  - compgen
+  - codegen
+  - msys
+  - maxdepth
+  - powershell

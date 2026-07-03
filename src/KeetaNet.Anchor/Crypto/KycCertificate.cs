@@ -4,9 +4,6 @@ using System.Text.Json;
 
 namespace KeetaNet.Anchor.Crypto;
 
-/// <summary>One KYC attribute: its OID <see cref="Name"/> and whether its value is encrypted.</summary>
-public sealed record KycAttribute(string Name, bool Sensitive);
-
 /// <summary>
 /// A proof attesting to a sensitive attribute's committed value. It validates
 /// against the certificate with only the subject's public key, so a holder can
@@ -28,18 +25,8 @@ public sealed class KycCertificate : WasmObject
 	/// <summary>Adopt an existing core-module leaf handle.</summary>
 	internal static KycCertificate Adopt(WasmRuntime runtime, int handle) => new(runtime, handle);
 
-	/// <summary>Parse a PEM-encoded KYC certificate.</summary>
-	public static KycCertificate Parse(WasmRuntime runtime, string pem)
-	{
-		int handle = runtime.KycCertificateParse(pem);
-		return new(runtime, handle);
-	}
-
-	/// <summary>Begin issuing a new KYC leaf certificate under <paramref name="runtime"/>.</summary>
-	public static KycCertificateBuilder Builder(WasmRuntime runtime) => new(runtime);
-
 	/// <summary>The PEM encoding of the certificate.</summary>
-	public string Pem() => Runtime.KycCertificatePem(Handle);
+	public string ToPem() => Runtime.KycCertificatePem(Handle);
 
 	/// <summary>The base certificate, as an independently owned certificate object.</summary>
 	public Certificate Base()
@@ -49,7 +36,7 @@ public sealed class KycCertificate : WasmObject
 	}
 
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
-	public bool ValidAt(DateTimeOffset moment)
+	public bool IsValidAt(DateTimeOffset moment)
 	{
 		long unixMillis = moment.ToUnixTimeMilliseconds();
 		return Runtime.KycCertificateValidAt(Handle, unixMillis);
@@ -71,26 +58,48 @@ public sealed class KycCertificate : WasmObject
 		return Runtime.KycCertificateVerify(Handle, roots, bridges, unixMillis);
 	}
 
-	/// <summary>The KYC attributes the certificate carries.</summary>
-	public IReadOnlyList<KycAttribute> Attributes()
+	/// <summary>The names of the KYC attributes the certificate carries.</summary>
+	public IReadOnlyList<string> GetAttributeNames()
 	{
 		byte[] payload = Runtime.KycCertificateAttributes(Handle);
-		return KeetaJson.ReadList<KycAttribute>(payload);
+		IReadOnlyList<AttributeEntry> entries = KeetaJson.ReadList<AttributeEntry>(payload);
+
+		return entries.Select(entry => entry.Name).ToList();
 	}
 
-	/// <summary>A plain (unencrypted) attribute by <paramref name="name"/>.</summary>
-	public byte[] PlainAttribute(string name) => Runtime.KycCertificatePlainAttribute(Handle, name);
-
-	/// <summary>Decrypt a sensitive attribute by <paramref name="name"/> using <paramref name="subject"/>.</summary>
-	public byte[] DecryptAttribute(string name, Account subject) =>
-		Runtime.KycCertificateDecryptAttribute(Handle, name, subject.Handle);
+	/// <summary>The undecoded semantic bytes of plain (unencrypted) attribute <paramref name="name"/>.</summary>
+	public byte[] GetAttributeBuffer(string name) => Runtime.KycCertificatePlainAttribute(Handle, name);
 
 	/// <summary>
-	/// Prove sensitive attribute <paramref name="name"/>, decrypting it with
-	/// <paramref name="subject"/>. The returned proof validates against this
-	/// certificate without the private key, for selective disclosure.
+	/// The undecoded semantic bytes of sensitive attribute <paramref name="name"/>,
+	/// decrypted with <paramref name="subject"/>.
 	/// </summary>
-	public AttributeProof Prove(string name, Account subject)
+	public byte[] GetAttributeBuffer(string name, Account subject) =>
+		Runtime.KycCertificateDecryptAttribute(Handle, name, subject.Handle);
+
+	/// <summary>Plain attribute <paramref name="name"/> as a typed value box.</summary>
+	public KycAttributeValue GetAttribute(string name)
+	{
+		byte[] buffer = GetAttributeBuffer(name);
+		return new(name, buffer);
+	}
+
+	/// <summary>
+	/// Sensitive attribute <paramref name="name"/>, decrypted with
+	/// <paramref name="subject"/>, as a typed value box.
+	/// </summary>
+	public KycAttributeValue GetAttribute(string name, Account subject)
+	{
+		byte[] buffer = GetAttributeBuffer(name, subject);
+		return new(name, buffer);
+	}
+
+	/// <summary>
+	/// A proof of sensitive attribute <paramref name="name"/>, decrypted with
+	/// <paramref name="subject"/>. The proof validates against this certificate
+	/// without the private key, for selective disclosure.
+	/// </summary>
+	public AttributeProof GetProof(string name, Account subject)
 	{
 		byte[] payload = Runtime.KycCertificateProve(Handle, name, subject.Handle);
 		return JsonSerializer.Deserialize<AttributeProof>(payload, KeetaJson.Options) ?? throw new KeetaException("PROOF", "the proof payload was empty");
@@ -106,59 +115,15 @@ public sealed class KycCertificate : WasmObject
 		return Runtime.KycCertificateValidateProof(Handle, name, subject.Handle, proofJson);
 	}
 
-	/// <summary>
-	/// A plain scalar attribute decoded as text. Scalar and date attributes
-	/// decode to a UTF-8 string (dates as an ISO-8601 timestamp).
-	/// </summary>
-	public string GetText(string name)
-	{
-		byte[] value = PlainAttribute(name);
-		return Encoding.UTF8.GetString(value);
-	}
-
-	/// <summary>
-	/// A sensitive scalar attribute decrypted with <paramref name="subject"/> and
-	/// decoded as text (dates as an ISO-8601 timestamp).
-	/// </summary>
-	public string GetText(string name, Account subject)
-	{
-		byte[] value = DecryptAttribute(name, subject);
-		return Encoding.UTF8.GetString(value);
-	}
-
-	/// <summary>
-	/// A plain structured attribute decoded as JSON. Structured attributes
-	/// (e.g. address, entity type) decode to a JSON object or array matching the
-	/// TypeScript client's value shape.
-	/// </summary>
-	public JsonElement GetJson(string name)
-	{
-		byte[] value = PlainAttribute(name);
-		return ParseJson(value);
-	}
-
-	/// <summary>
-	/// A sensitive structured attribute decrypted with <paramref name="subject"/>
-	/// and decoded as JSON.
-	/// </summary>
-	public JsonElement GetJson(string name, Account subject)
-	{
-		byte[] value = DecryptAttribute(name, subject);
-		return ParseJson(value);
-	}
-
-	private static JsonElement ParseJson(byte[] payload)
-	{
-		using var document = JsonDocument.Parse(payload);
-		return document.RootElement.Clone();
-	}
-
 	private protected override void Release(WasmRuntime runtime, int handle) => runtime.KycCertificateFree(handle);
+
+	/// <summary>The core's attribute-list transport shape.</summary>
+	private sealed record AttributeEntry(string Name, bool Sensitive);
 }
 
 /// <summary>
 /// A fluent builder for a KYC leaf certificate: collect a subject, issuer,
-/// validity window, and attributes, then <see cref="Issue"/> the signed
+/// validity window, and attributes, then <see cref="Build"/> the signed
 /// leaf. Sensitive attributes are encrypted to the subject; the issuer
 /// signs. The subject and issuer may use different signing algorithms.
 /// </summary>
@@ -264,8 +229,8 @@ public sealed class KycCertificateBuilder
 		return this;
 	}
 
-	/// <summary>Issue the signed leaf certificate.</summary>
-	public KycCertificate Issue()
+	/// <summary>Build (issue) the signed leaf certificate.</summary>
+	public KycCertificate Build()
 	{
 		Account subject = _subject ?? throw new InvalidOperationException("a subject account is required to issue a certificate");
 		Account issuer = _issuer ?? throw new InvalidOperationException("an issuer account is required to issue a certificate");

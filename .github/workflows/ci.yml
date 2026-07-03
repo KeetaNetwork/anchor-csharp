@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  RUST_TOOLCHAIN: "1.94.0"
-
 jobs:
   build-test:
     name: Build & Test (${{ matrix.os }})
@@ -22,6 +19,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # SonarCloud needs the parent branch information.
+          fetch-depth: 0
 
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
@@ -29,10 +29,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Cache wasm build
         uses: actions/cache@v4
@@ -41,7 +38,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -56,7 +53,7 @@ jobs:
 
       - name: Build node harness
         shell: bash
-        run: npm ci && npm run build
+        run: npm ci --ignore-scripts && npm rebuild sqlite3 && npm run build
         working-directory: tests/node-harness
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,7 +65,29 @@ jobs:
         run: dotnet build KeetaNet.Anchor.slnx -c Release --no-restore
 
       - name: Test
-        run: dotnet test KeetaNet.Anchor.slnx -c Release --no-build
+        run: >
+          dotnet test KeetaNet.Anchor.slnx -c Release --no-build
+          -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
+
+      # Run SonarCloud on the coverage this test run
+      - name: Convert coverage to SonarQube format
+        if: matrix.os == 'ubuntu-latest-l' && github.repository == 'KeetaNetwork/anchor-csharp'
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            "-reports:**/TestResults/**/coverage.cobertura.xml" \
+            "-targetdir:.sonar-coverage" \
+            "-reporttypes:SonarQube"
+
+      - name: SonarCloud Scan
+        if: matrix.os == 'ubuntu-latest-l' && github.repository == 'KeetaNetwork/anchor-csharp'
+        uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402 # v4.2.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dproject.settings=./sonar-project.properties
 
   lint:
     name: Lint
@@ -92,7 +111,7 @@ jobs:
           scope: "@keetanetwork"
 
       - name: Check formatting and linting
-        run: make lint
+        run: make do-lint-ci
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -108,10 +127,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Cache wasm build
         uses: actions/cache@v4
@@ -120,13 +136,13 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
 
       - name: Build wasm core
         run: bash scripts/build-wasm.sh
 
       - name: Pack
-        run: dotnet pack src/KeetaNet.Anchor/KeetaNet.Anchor.csproj -c Release -o artifacts
+        run: dotnet pack KeetaNet.Anchor.slnx -c Release -o artifacts
 
       - name: Upload package
         uses: actions/upload-artifact@v4
@@ -155,57 +171,3 @@ jobs:
             echo "::error::Vulnerable packages found"
             exit 1
           fi
-
-  sonar:
-    name: SonarCloud
-    runs-on: ubuntu-latest-l
-    if: github.repository == 'KeetaNetwork/anchor-csharp'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          global-json-file: global.json
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
-
-      - name: Cache wasm build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
-
-      - name: Build wasm core
-        run: bash scripts/build-wasm.sh
-
-      - name: Test with coverage
-        run: >
-          dotnet test tests/KeetaNet.Anchor.Tests/KeetaNet.Anchor.Tests.csproj -c Release
-          -- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
-
-      - name: Convert coverage to SonarQube format
-        run: |
-          dotnet tool install --global dotnet-reportgenerator-globaltool
-          reportgenerator \
-            "-reports:**/TestResults/**/coverage.cobertura.xml" \
-            "-targetdir:.sonar-coverage" \
-            "-reporttypes:SonarQube"
-
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402 # v4.2.2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        with:
-          args: >
-            -Dproject.settings=./sonar-project.properties

@@ -37,7 +37,7 @@ internal static class LocalLeaf
 		Account issuer,
 		IReadOnlyList<AttributeCase> cases)
 	{
-		KycCertificateBuilder builder = KycCertificate.Builder(runtime)
+		KycCertificateBuilder builder = runtime.KycCertificates.Builder()
 			.Subject(subject)
 			.Issuer(issuer)
 			.SubjectName("Subject")
@@ -50,6 +50,6 @@ internal static class LocalLeaf
 			builder.SetAttribute(attribute.Name, attribute.Sensitive, attribute.Semantic);
 		}
 
-		return builder.Issue();
+		return builder.Build();
 	}
 }

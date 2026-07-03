@@ -24,18 +24,18 @@ public sealed class KycInteropTests
 		IssuedLeaf issued = IssuedLeaf.Issue(harness);
 
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
-		using KycCertificate leaf = KycCertificate.Parse(runtime, issued.Pem);
+		using Account subject = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using KycCertificate leaf = runtime.KycCertificates.Parse(issued.Pem);
 
 		foreach (AttributeCase attribute in cases)
 		{
-			byte[] decoded = leaf.DecryptAttribute(attribute.Name, subject);
+			byte[] decoded = leaf.GetAttributeBuffer(attribute.Name, subject);
 			IssueAttributes.AssertMatches(attribute, decoded);
 		}
 
 		// A C# proof must validate on both sides, and a TypeScript proof must
 		// validate through the C# reader.
-		AttributeProof localProof = leaf.Prove(ProvenAttribute, subject);
+		AttributeProof localProof = leaf.GetProof(ProvenAttribute, subject);
 		Assert.True(leaf.ValidateProof(ProvenAttribute, subject, localProof));
 		Assert.True(ValidateThroughHarness(harness, issued.Pem, localProof));
 
@@ -54,8 +54,8 @@ public sealed class KycInteropTests
 		harness.Shutdown();
 
 		using var runtime = WasmRuntime.Load();
-		using KycCertificate leaf = KycCertificate.Parse(runtime, issued.Pem);
-		using CryptoCertificate ca = CryptoCertificate.Parse(runtime, issued.CaPem);
+		using KycCertificate leaf = runtime.KycCertificates.Parse(issued.Pem);
+		using CryptoCertificate ca = runtime.Certificates.Parse(issued.CaPem);
 
 		Assert.True(
 			leaf.Verify(new[] { ca }, Array.Empty<CryptoCertificate>(), DateTimeOffset.UtcNow),
@@ -68,10 +68,10 @@ public sealed class KycInteropTests
 		IReadOnlyList<AttributeCase> cases = IssueAttributes.Cases();
 
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
-		using Account issuer = Account.FromSeed(runtime, E2eSeeds.Issuer, 0, E2eSeeds.Secp256k1);
+		using Account subject = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account issuer = runtime.Accounts.FromSeed(E2eSeeds.Issuer, 0, E2eSeeds.Secp256k1);
 		using KycCertificate leaf = LocalLeaf.Issue(runtime, subject, issuer, cases);
-		string leafPem = leaf.Pem();
+		string leafPem = leaf.ToPem();
 
 		using var harness = NodeHarness.Spawn("kyc");
 		JsonElement attributes = DecodeThroughHarness(harness, leafPem, cases);
@@ -82,7 +82,7 @@ public sealed class KycInteropTests
 			IssueAttributes.AssertJsonEqual(attribute.Name, attribute.Expected, actual);
 		}
 
-		AttributeProof proof = leaf.Prove(ProvenAttribute, subject);
+		AttributeProof proof = leaf.GetProof(ProvenAttribute, subject);
 		Assert.True(
 			ValidateThroughHarness(harness, leafPem, proof),
 			"the reference must validate a C# proof over a C#-issued leaf");

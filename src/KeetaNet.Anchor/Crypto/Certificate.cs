@@ -10,28 +10,14 @@ public sealed class Certificate : WasmObject
 	{
 	}
 
-	/// <summary>Parse a PEM-encoded certificate.</summary>
-	public static Certificate Parse(WasmRuntime runtime, string pem)
-	{
-		int handle = runtime.CertificateParse(pem);
-		return new(runtime, handle);
-	}
-
-	/// <summary>Parse a DER-encoded certificate.</summary>
-	public static Certificate ParseDer(WasmRuntime runtime, byte[] der)
-	{
-		int handle = runtime.CertificateParseDer(der);
-		return new(runtime, handle);
-	}
-
 	/// <summary>The PEM encoding of the certificate.</summary>
-	public string Pem() => Runtime.CertificatePem(Handle);
+	public string ToPem() => Runtime.CertificatePem(Handle);
 
 	/// <summary>The DER encoding of the certificate.</summary>
-	public byte[] Der() => Runtime.CertificateDer(Handle);
+	public byte[] ToDer() => Runtime.CertificateDer(Handle);
 
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
-	public bool ValidAt(DateTimeOffset moment)
+	public bool IsValidAt(DateTimeOffset moment)
 	{
 		long unixMillis = moment.ToUnixTimeMilliseconds();
 		return Runtime.CertificateValidAt(Handle, unixMillis);
@@ -68,7 +54,7 @@ public sealed class Certificate : WasmObject
 
 	/// <summary>
 	/// The subject public key, type-prefixed and hex-encoded to match
-	/// <see cref="Account.PublicKey"/>, so a subject can be matched to an account.
+	/// <see cref="Account.PublicKeyAndType"/>, so a subject can be matched to an account.
 	/// </summary>
 	public string SubjectPublicKey => Runtime.CertificateSubjectPublicKey(Handle);
 

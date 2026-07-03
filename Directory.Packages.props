@@ -7,10 +7,12 @@
 
 	<ItemGroup>
 		<PackageVersion Include="Wasmtime" Version="44.0.0" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
 	</ItemGroup>
 
 	<ItemGroup Label="Test">
 		<PackageVersion Include="xunit.v3" Version="3.2.2" />
+		<PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
 		<!--
 			Must stay on the Microsoft.Testing.Platform 1.x line: xunit.v3 stable
 			ships an MTP v1 adapter (xunit.v3.core.mtp-v1 -> MTP 1.9.1), and the

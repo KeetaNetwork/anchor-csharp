@@ -17,18 +17,19 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>
-	/// Build a client signed by an existing <paramref name="account"/> from the
-	/// <c>crypto</c> surface, resolving providers from <paramref name="root"/>'s
-	/// on-chain service metadata read via the node API at <paramref name="nodeUrl"/>.
+	/// Build a client signed by an existing <paramref name="account"/>, resolving
+	/// providers from <paramref name="root"/>'s on-chain service metadata read via
+	/// the node API at <paramref name="nodeUrl"/>. Reached through
+	/// <see cref="WasmRuntime.CreateKycClient"/>.
 	/// </summary>
-	public static KycClient WithAccount(WasmRuntime runtime, string nodeUrl, string root, Crypto.Account account)
+	internal static KycClient WithAccount(WasmRuntime runtime, string nodeUrl, string root, Crypto.Account account)
 	{
 		int handle = runtime.KycWithAccount(nodeUrl, root, account.Handle);
 		return new KycClient(runtime, handle);
 	}
 
 	/// <summary>Every provider that serves all <paramref name="countries"/> (ISO codes).</summary>
-	public async Task<IReadOnlyList<KycProvider>> ProvidersAsync(
+	public async Task<IReadOnlyList<KycProvider>> GetProvidersAsync(
 		IEnumerable<string> countries,
 		CancellationToken cancellationToken = default)
 	{
@@ -39,11 +40,11 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>
-	/// Begin a verification with <paramref name="provider"/> for
+	/// Start a verification with <paramref name="provider"/> for
 	/// <paramref name="countries"/>, optionally redirecting the user to
 	/// <paramref name="redirect"/> when the flow ends.
 	/// </summary>
-	public async Task<VerificationOutcome> CreateVerificationAsync(
+	public async Task<VerificationOutcome> StartVerificationAsync(
 		KycProvider provider,
 		IEnumerable<string> countries,
 		string? redirect = null,
@@ -75,8 +76,8 @@ public sealed class KycClient : WasmObject
 
 	/// <summary>Parse <paramref name="provider"/>'s advertised issuer CA certificate.</summary>
 	/// <remarks>Use it as a trusted root when verifying an issued <see cref="Crypto.KycCertificate"/>.</remarks>
-	public Crypto.Certificate ProviderCertificate(KycProvider provider) =>
-		Crypto.Certificate.Parse(Runtime, provider.Ca);
+	public Crypto.Certificate GetCA(KycProvider provider) =>
+		Runtime.Certificates.Parse(provider.Ca);
 
 	/// <summary>Read the status of verification <paramref name="id"/>.</summary>
 	public async Task<StatusOutcome> GetVerificationStatusAsync(

@@ -24,10 +24,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Build wasm core
         run: bash scripts/build-wasm.sh
@@ -41,7 +38,7 @@ jobs:
 
       - name: Pack
         run: >
-          dotnet pack src/KeetaNet.Anchor/KeetaNet.Anchor.csproj -c Release -o artifacts
+          dotnet pack KeetaNet.Anchor.slnx -c Release -o artifacts
           ${{ startsWith(github.ref, 'refs/tags/releases/v') && format('-p:Version={0}', steps.version.outputs.value) || '' }}
 
       - name: Attest build provenance
@@ -50,8 +47,10 @@ jobs:
           subject-path: "artifacts/*.nupkg"
 
       - name: Push
+        env:
+          NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
         run: >
           dotnet nuget push "artifacts/*.nupkg"
           --source "https://nuget.pkg.github.com/KeetaNetwork/index.json"
-          --api-key "${{ secrets.GITHUB_TOKEN }}"
+          --api-key "$NUGET_API_KEY"
           --skip-duplicate

@@ -1,0 +1,6 @@
+# rustfmt is required: keetanetwork-asn1's codegen silently emits unformatted
+# (and uncompilable) output when rustfmt is missing from the toolchain.
+[toolchain]
+channel = "1.94.0"
+components = ["rustfmt"]
+targets = ["wasm32-wasip1"]

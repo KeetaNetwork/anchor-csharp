@@ -8,53 +8,9 @@ namespace KeetaNet.Anchor.Crypto;
 /// </summary>
 public sealed class SharableCertificateAttributes : WasmObject
 {
-	private SharableCertificateAttributes(WasmRuntime runtime, int handle)
+	internal SharableCertificateAttributes(WasmRuntime runtime, int handle)
 		: base(runtime, handle)
 	{
-	}
-
-	/// <summary>
-	/// Prove or copy each attribute in <paramref name="names"/> from
-	/// <paramref name="certificate"/> using the <paramref name="subject"/> account,
-	/// bridging the trust chain with <paramref name="intermediates"/>, and seal the
-	/// result. Grant a recipient before exporting.
-	/// </summary>
-	public static SharableCertificateAttributes FromCertificate(
-		WasmRuntime runtime,
-		KycCertificate certificate,
-		Account subject,
-		IEnumerable<Certificate>? intermediates = null,
-		IEnumerable<string>? names = null)
-	{
-		int[] bridges = Handles.Of(intermediates);
-		string[] labels = (names ?? Enumerable.Empty<string>()).ToArray();
-		int handle = runtime.SharableFromCertificate(certificate.Handle, subject.Handle, bridges, labels);
-
-		return new(runtime, handle);
-	}
-
-	/// <summary>Open a bundle from encoded container bytes, resolved with <paramref name="principals"/>.</summary>
-	public static SharableCertificateAttributes FromEncoded(
-		WasmRuntime runtime,
-		byte[] data,
-		IEnumerable<Account>? principals = null)
-	{
-		int[] handles = Handles.Of(principals);
-		int handle = runtime.SharableFromEncoded(data, handles);
-
-		return new(runtime, handle);
-	}
-
-	/// <summary>Open a bundle from a PEM envelope, resolved with <paramref name="principals"/>.</summary>
-	public static SharableCertificateAttributes FromPem(
-		WasmRuntime runtime,
-		string pem,
-		IEnumerable<Account>? principals = null)
-	{
-		int[] handles = Handles.Of(principals);
-		int handle = runtime.SharableFromPem(pem, handles);
-
-		return new(runtime, handle);
 	}
 
 	/// <summary>Grant <paramref name="accounts"/> access, invalidating the encoded form.</summary>
@@ -68,7 +24,7 @@ public sealed class SharableCertificateAttributes : WasmObject
 	public void RevokeAccess(byte[] publicKey) => Runtime.SharableRevokeAccess(Handle, publicKey);
 
 	/// <summary>The type-prefixed public keys of the accounts that can open the bundle.</summary>
-	public IReadOnlyList<byte[]> Principals()
+	public IReadOnlyList<byte[]> GetPrincipals()
 	{
 		byte[] payload = Runtime.SharablePrincipals(Handle);
 		return PrincipalKeys.Decode(payload);
@@ -81,37 +37,37 @@ public sealed class SharableCertificateAttributes : WasmObject
 	public string ToPem() => Runtime.SharableToPem(Handle);
 
 	/// <summary>The embedded leaf certificate, as an independently owned object.</summary>
-	public KycCertificate LeafCertificate()
+	public KycCertificate GetCertificate()
 	{
 		int handle = Runtime.SharableCertificate(Handle);
 		return KycCertificate.Adopt(Runtime, handle);
 	}
 
 	/// <summary>The embedded intermediate certificate chain, as owned objects.</summary>
-	public IReadOnlyList<Certificate> Intermediates()
+	public IReadOnlyList<Certificate> GetIntermediates()
 	{
 		byte[] payload = Runtime.SharableIntermediates(Handle);
 		string[] pems = JsonSerializer.Deserialize<string[]>(payload) ?? Array.Empty<string>();
 
-		return pems.Select(pem => Certificate.Parse(Runtime, pem)).ToList();
+		return pems.Select(Runtime.Certificates.Parse).ToList();
 	}
 
 	/// <summary>The names of the disclosed attributes.</summary>
-	public IReadOnlyList<string> AttributeNames()
+	public IReadOnlyList<string> GetAttributeNames()
 	{
 		byte[] payload = Runtime.SharableAttributeNames(Handle);
 		return JsonSerializer.Deserialize<string[]>(payload) ?? Array.Empty<string>();
 	}
 
 	/// <summary>The validated raw disclosed value for <paramref name="name"/>, or <c>null</c> when not disclosed.</summary>
-	public byte[]? AttributeBuffer(string name)
+	public byte[]? GetAttributeBuffer(string name)
 	{
 		byte[] value = Runtime.SharableAttributeBuffer(Handle, name);
 		return NullWhenEmpty(value);
 	}
 
 	/// <summary>The schema-decoded semantic value for <paramref name="name"/>, or <c>null</c> when not disclosed.</summary>
-	public byte[]? AttributeValue(string name)
+	public byte[]? GetAttributeValue(string name)
 	{
 		byte[] value = Runtime.SharableAttributeValue(Handle, name);
 		return NullWhenEmpty(value);

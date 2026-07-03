@@ -18,7 +18,7 @@ public sealed class CryptoTests
 	public void AccountDerivesSignsAndVerifies(string algorithm)
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, algorithm);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, algorithm);
 
 		Assert.Equal(algorithm, account.Algorithm);
 		Assert.StartsWith("keeta_", account.Address, StringComparison.Ordinal);
@@ -37,7 +37,7 @@ public sealed class CryptoTests
 	public void EncryptToSelfRoundTrips(string algorithm)
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account account = Account.FromSeed(runtime, TestSeeds.Subject, 0, algorithm);
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, algorithm);
 
 		byte[] secret = Encoding.UTF8.GetBytes("for my eyes only");
 		byte[] ciphertext = account.Encrypt(secret);
@@ -46,14 +46,90 @@ public sealed class CryptoTests
 	}
 
 	[Fact]
+	public void ReadOnlyAccountsShareTheSignerIdentityButCannotSign()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account signer = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+
+		byte[] message = Encoding.UTF8.GetBytes("watch-only verification");
+		byte[] signature = signer.Sign(message);
+
+		// An address-parsed account is the same identity and verifies the
+		// signer's work, but carries no key material to sign with.
+		using Account fromAccount = runtime.Accounts.FromAccount(signer.Address);
+		Assert.Equal(signer.Address, fromAccount.Address);
+		Assert.True(fromAccount.Verify(message, signature));
+		Assert.Throws<KeetaException>(() => fromAccount.Sign(message));
+
+		// The type-prefixed transport key round-trips to the same identity.
+		using Account fromPublicKey = runtime.Accounts.FromPublicKeyAndType(signer.PublicKeyAndType);
+		Assert.Equal(signer.Address, fromPublicKey.Address);
+		Assert.True(fromPublicKey.Verify(message, signature));
+	}
+
+	[Fact]
+	public void ImportedPrivateKeyYieldsAWorkingSignerWithAStablePublicIdentity()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account imported = runtime.Accounts.FromPrivateKey(TestSeeds.Issuer, TestSeeds.DefaultAlgorithm);
+
+		Assert.StartsWith("keeta_", imported.Address, StringComparison.Ordinal);
+
+		byte[] message = Encoding.UTF8.GetBytes("imported key signer");
+		byte[] signature = imported.Sign(message);
+		Assert.True(imported.Verify(message, signature));
+
+		// The raw public half plus its algorithm names the same on-ledger identity.
+		string rawPublicKey = imported.PublicKeyAndType[2..];
+		using Account publicHalf = runtime.Accounts.FromPublicKey(rawPublicKey, TestSeeds.DefaultAlgorithm);
+		Assert.Equal(imported.Address, publicHalf.Address);
+	}
+
+	[Fact]
+	public void IdentifierTypedPublicKeysAreRejectedWithACodedError()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account signer = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+
+		// A token identifier (type byte 3) carries no signing key, so the
+		// factory must refuse it rather than mislabel the algorithm.
+		string tokenTyped = "03" + signer.PublicKeyAndType[2..];
+		KeetaException rejected = Assert.Throws<KeetaException>(() =>
+		{
+			using Account unexpected = runtime.Accounts.FromPublicKeyAndType(tokenTyped);
+		});
+		Assert.Equal("INVALID_ALGORITHM", rejected.Code);
+
+		KeetaException notHex = Assert.Throws<KeetaException>(() =>
+		{
+			using Account unexpected = runtime.Accounts.FromPublicKeyAndType("not hex");
+		});
+		Assert.Equal("INVALID_PUBLIC_KEY", notHex.Code);
+	}
+
+	[Fact]
+	public void GeneratedSeedsAreUniqueAndDeriveSigners()
+	{
+		using var runtime = WasmRuntime.Load();
+
+		string first = runtime.Accounts.GenerateRandomSeed();
+		string second = runtime.Accounts.GenerateRandomSeed();
+		Assert.NotEqual(first, second);
+
+		using Account account = runtime.Accounts.FromSeed(first, 0, TestSeeds.DefaultAlgorithm);
+		byte[] message = Encoding.UTF8.GetBytes("generated seed signer");
+		Assert.True(account.Verify(message, account.Sign(message)));
+	}
+
+	[Fact]
 	public void GeneratedPassphraseDerivesASigner()
 	{
 		using var runtime = WasmRuntime.Load();
 
-		IReadOnlyList<string> mnemonic = Account.GeneratePassphrase(runtime);
+		IReadOnlyList<string> mnemonic = runtime.Accounts.GeneratePassphrase();
 		Assert.True(mnemonic.Count is 12 or 24);
 
-		using Account account = Account.FromPassphrase(runtime, mnemonic, 0, "ed25519");
+		using Account account = runtime.Accounts.FromPassphrase(mnemonic, 0, "ed25519");
 		byte[] message = Encoding.UTF8.GetBytes("mnemonic signer");
 		byte[] signature = account.Sign(message);
 		Assert.True(account.Verify(message, signature));
@@ -63,44 +139,61 @@ public sealed class CryptoTests
 	public void FixtureCertificateExposesItsFields()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
-		using CryptoCertificate certificate = CryptoCertificate.Parse(runtime, KycFixture.Pem);
+		using Account subject = runtime.Accounts.FromSeed(KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
+		using CryptoCertificate certificate = runtime.Certificates.Parse(KycFixture.Pem);
 
-		Assert.Contains("BEGIN CERTIFICATE", certificate.Pem(), StringComparison.Ordinal);
-		Assert.True(certificate.ValidAt(KycFixture.ValidAt));
+		Assert.Contains("BEGIN CERTIFICATE", certificate.ToPem(), StringComparison.Ordinal);
+		Assert.True(certificate.IsValidAt(KycFixture.ValidAt));
 
 		DateTimeOffset epoch = DateTimeOffset.FromUnixTimeSeconds(0);
-		Assert.False(certificate.ValidAt(epoch));
+		Assert.False(certificate.IsValidAt(epoch));
 
 		Assert.Contains("Test Subject", certificate.Subject, StringComparison.Ordinal);
 		Assert.Contains("Test Issuer", certificate.Issuer, StringComparison.Ordinal);
 		Assert.Equal("12345", certificate.Serial);
 		Assert.True(certificate.NotBefore < certificate.NotAfter);
 		Assert.InRange(KycFixture.ValidAt, certificate.NotBefore, certificate.NotAfter);
-		Assert.Equal(subject.PublicKey, certificate.SubjectPublicKey);
+		Assert.Equal(subject.PublicKeyAndType, certificate.SubjectPublicKey);
+	}
+
+	[Fact]
+	public void FixtureCertificateRoundTripsThroughDer()
+	{
+		using var runtime = WasmRuntime.Load();
+		using CryptoCertificate parsed = runtime.Certificates.Parse(KycFixture.Pem);
+
+		byte[] der = parsed.ToDer();
+		Assert.NotEmpty(der);
+
+		// Both transport encodings describe the same certificate.
+		using CryptoCertificate fromDer = runtime.Certificates.ParseDer(der);
+		Assert.Equal(parsed.Serial, fromDer.Serial);
+		Assert.Equal(parsed.Subject, fromDer.Subject);
+		Assert.Equal(parsed.ToPem(), fromDer.ToPem());
 	}
 
 	[Fact]
 	public void FixtureKycCertificateReadsAndDecryptsAttributes()
 	{
 		using var runtime = WasmRuntime.Load();
-		using Account subject = Account.FromSeed(runtime, KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
-		using KycCertificate kyc = KycCertificate.Parse(runtime, KycFixture.Pem);
+		using Account subject = runtime.Accounts.FromSeed(KycFixture.SubjectSeed, 0, KycFixture.Algorithm);
+		using KycCertificate kyc = runtime.KycCertificates.Parse(KycFixture.Pem);
 
-		IReadOnlyList<KycAttribute> attributes = kyc.Attributes();
-		Assert.Equal(3, attributes.Count);
-		Assert.Equal(2, attributes.Count(attribute => attribute.Sensitive));
+		// The fixture was issued with raw OID attribute names.
+		IReadOnlyList<string> attributeNames = kyc.GetAttributeNames();
+		Assert.Equal(3, attributeNames.Count);
+		Assert.All(attributeNames, name => Assert.Matches(@"^[\d.]+$", name));
 
-		byte[] postalCode = kyc.PlainAttribute("postalCode");
+		byte[] postalCode = kyc.GetAttributeBuffer("postalCode");
 		Assert.Equal("12345", Encoding.UTF8.GetString(postalCode));
 
-		byte[] email = kyc.DecryptAttribute("email", subject);
+		byte[] email = kyc.GetAttributeBuffer("email", subject);
 		Assert.Equal("john@example.com", Encoding.UTF8.GetString(email));
 
 		using CryptoCertificate baseCertificate = kyc.Base();
-		Assert.Contains("BEGIN CERTIFICATE", baseCertificate.Pem(), StringComparison.Ordinal);
+		Assert.Contains("BEGIN CERTIFICATE", baseCertificate.ToPem(), StringComparison.Ordinal);
 
-		using CryptoCertificate trustRoot = CryptoCertificate.Parse(runtime, KycFixture.Pem);
+		using CryptoCertificate trustRoot = runtime.Certificates.Parse(KycFixture.Pem);
 		CryptoCertificate[] roots = { trustRoot };
 		CryptoCertificate[] none = Array.Empty<CryptoCertificate>();
 		Assert.True(kyc.Verify(roots, none, KycFixture.ValidAt));

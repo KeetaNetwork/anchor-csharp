@@ -78,11 +78,11 @@ public sealed class AssetTransfer
 	public IReadOnlyList<JsonElement> InstructionChoices { get; }
 
 	/// <summary>Read this transfer's current status.</summary>
-	public Task<AssetTransferStatus> GetStatusAsync(CancellationToken cancellationToken = default) =>
-		_client.TransferStatusAsync(_provider, Id, cancellationToken);
+	public Task<AssetTransferStatus> GetTransferStatusAsync(CancellationToken cancellationToken = default) =>
+		_client.GetTransferStatusAsync(_provider, Id, cancellationToken);
 
 	/// <summary>Execute a fiat pull <paramref name="instruction"/> for this transfer.</summary>
-	public Task<AssetTransferStatus> ExecuteAsync(
+	public Task<AssetTransferStatus> ExecuteTransferAsync(
 		AssetPullInstruction instruction,
 		CancellationToken cancellationToken = default)
 	{

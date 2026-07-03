@@ -54,6 +54,12 @@ public sealed partial class WasmRuntime : IDisposable
 
 	private WasmRuntime(Func<Engine, Module> loadModule)
 	{
+		Accounts = new Crypto.AccountFactory(this);
+		Certificates = new Crypto.CertificateFactory(this);
+		KycCertificates = new Crypto.KycCertificateFactory(this);
+		Containers = new Crypto.EncryptedContainerFactory(this);
+		Sharables = new Crypto.SharableCertificateAttributesFactory(this);
+
 		_dispatcher = new WasmDispatcher();
 		try
 		{
