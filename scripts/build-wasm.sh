@@ -24,15 +24,27 @@ checksum() {
 	fi
 }
 
-# rasn-compiler (used by keetanetwork-asn1's build script) probes for a
-# literal `$CARGO_HOME/bin/rustfmt`.
+# rasn-compiler probes `$CARGO_HOME/bin/rustfmt` and `$CARGO`-adjacent
+# `rustfmt` without the .exe suffix. When both miss it silently emits
+# unformatted bindings that break the keetanetwork-asn1 build. Shim
+# extension-less copies for it.
 shim_rustfmt_for_windows() {
 	[[ "${OS:-}" == "Windows_NT" ]] || return 0
 
 	local cargo_bin="${CARGO_HOME:-${USERPROFILE}/.cargo}/bin"
 	if [[ -f "${cargo_bin}/rustfmt.exe" && ! -f "${cargo_bin}/rustfmt" ]]; then
-		echo "build-wasm: shimming extension-less rustfmt for rasn-compiler"
+		echo "build-wasm: shimming extension-less rustfmt in ${cargo_bin}"
 		cp "${cargo_bin}/rustfmt.exe" "${cargo_bin}/rustfmt"
+	fi
+
+	local toolchain_rustfmt
+	toolchain_rustfmt="$(rustup which rustfmt 2>/dev/null || true)"
+	if [[ "${toolchain_rustfmt}" == *.exe && -f "${toolchain_rustfmt}" ]]; then
+		local bare_rustfmt="${toolchain_rustfmt%.exe}"
+		if [[ ! -f "${bare_rustfmt}" ]]; then
+			echo "build-wasm: shimming extension-less rustfmt in the toolchain bin dir"
+			cp "${toolchain_rustfmt}" "${bare_rustfmt}"
+		fi
 	fi
 }
 
