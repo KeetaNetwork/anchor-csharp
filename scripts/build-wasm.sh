@@ -45,7 +45,7 @@ shim_rustfmt_for_windows() {
 		rustup component add rustfmt
 	fi
 
-	cp "${toolchain_bin}/rustfmt.exe" "${toolchain_bin}/rustfmt"
+	copy_bare_rustfmt "${toolchain_bin}"
 	"${toolchain_bin}/rustfmt" --version
 
 	# Cover the `$CARGO_HOME/bin` probe too, via the rustup proxy when one
@@ -53,11 +53,28 @@ shim_rustfmt_for_windows() {
 	local cargo_bin
 	cargo_bin="$(cygpath -u "${CARGO_HOME:-${USERPROFILE}/.cargo}")/bin"
 	if [[ -f "${cargo_bin}/rustfmt.exe" ]]; then
-		cp "${cargo_bin}/rustfmt.exe" "${cargo_bin}/rustfmt"
-		"${cargo_bin}/rustfmt" --version
+		copy_bare_rustfmt "${cargo_bin}"
 	fi
 
 	echo "build-wasm: bare rustfmt shims verified"
+}
+
+# MSYS transparently resolves an extension-less `rustfmt` path to
+# `rustfmt.exe`, so POSIX tools cannot create the bare copy (cp reports
+# "same file") and `-f` checks lie. Copy with Windows-native cmd, which
+# writes the literal name, and verify via directory entries.
+copy_bare_rustfmt() {
+	local bin_dir="$1"
+	local src dest
+	src="$(cygpath -w "${bin_dir}/rustfmt.exe")"
+	dest="$(cygpath -w "${bin_dir}/rustfmt")"
+	MSYS2_ARG_CONV_EXCL="*" cmd /c copy /y "${src}" "${dest}" >/dev/null
+
+	if [[ -z "$(find "${bin_dir}" -maxdepth 1 -name rustfmt)" ]]; then
+		echo "build-wasm: failed to shim bare rustfmt in ${bin_dir}" >&2
+		exit 1
+	fi
+	echo "build-wasm: bare rustfmt shimmed in ${bin_dir}"
 }
 
 # A cached target dir can hold codegen output produced while rustfmt was
