@@ -16,10 +16,23 @@ DEST="${ROOT}/src/KeetaNet.Anchor/wasm/keetanetwork_anchor_client_wasi.wasm"
 DOWNLOAD_URL="https://crates.io/api/v1/crates/${CRATE_NAME}/${CRATE_VERSION}/download"
 
 checksum() {
+	local file="$1"
 	if command -v sha256sum >/dev/null 2>&1; then
-		sha256sum "$1" | cut -d' ' -f1
+		sha256sum "${file}" | cut -d' ' -f1
 	else
-		shasum -a 256 "$1" | cut -d' ' -f1
+		shasum -a 256 "${file}" | cut -d' ' -f1
+	fi
+}
+
+# rasn-compiler (used by keetanetwork-asn1's build script) probes for a
+# literal `$CARGO_HOME/bin/rustfmt`.
+shim_rustfmt_for_windows() {
+	[[ "${OS:-}" == "Windows_NT" ]] || return 0
+
+	local cargo_bin="${CARGO_HOME:-${USERPROFILE}/.cargo}/bin"
+	if [[ -f "${cargo_bin}/rustfmt.exe" && ! -f "${cargo_bin}/rustfmt" ]]; then
+		echo "build-wasm: shimming extension-less rustfmt for rasn-compiler"
+		cp "${cargo_bin}/rustfmt.exe" "${cargo_bin}/rustfmt"
 	fi
 }
 
@@ -39,16 +52,17 @@ require_wasip1_target() {
 
 fetch_crate() {
 	mkdir -p "${BUILD_DIR}"
-	if [ ! -f "${TARBALL}" ]; then
+	if [[ ! -f "${TARBALL}" ]]; then
 		echo "build-wasm: downloading ${CRATE_NAME} ${CRATE_VERSION} from crates.io"
 		# crates.io rejects requests without a User-Agent.
 		curl --fail --silent --show-error --location \
+			--proto '=https' --tlsv1.2 \
 			--user-agent "anchor-csharp build-wasm (https://github.com/KeetaNetwork/anchor-csharp)" \
 			--output "${TARBALL}" "${DOWNLOAD_URL}"
 	fi
 
 	actual="$(checksum "${TARBALL}")"
-	if [ "${actual}" != "${CRATE_SHA256}" ]; then
+	if [[ "${actual}" != "${CRATE_SHA256}" ]]; then
 		rm -f "${TARBALL}"
 		echo "build-wasm: checksum mismatch for ${TARBALL}" >&2
 		echo "  expected: ${CRATE_SHA256}" >&2
@@ -56,7 +70,7 @@ fetch_crate() {
 		exit 1
 	fi
 
-	if [ ! -d "${CRATE_DIR}" ]; then
+	if [[ ! -d "${CRATE_DIR}" ]]; then
 		tar --extract --gzip --file "${TARBALL}" --directory "${BUILD_DIR}"
 	fi
 }
@@ -71,6 +85,7 @@ build_artifact() {
 		--features p1
 }
 
+shim_rustfmt_for_windows
 require_wasip1_target
 fetch_crate
 build_artifact

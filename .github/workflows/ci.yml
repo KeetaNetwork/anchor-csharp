@@ -50,7 +50,7 @@ jobs:
 
       - name: Build node harness
         shell: bash
-        run: npm ci && npm run build
+        run: npm ci --ignore-scripts && npm rebuild sqlite3 && npm run build
         working-directory: tests/node-harness
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

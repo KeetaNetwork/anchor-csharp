@@ -11,8 +11,10 @@ namespace KeetaNet.Anchor.Tests;
 /// </summary>
 public sealed class SharableTests
 {
-	private static readonly string[] EmailOnly = { "email" };
-	private static readonly string[] BothAttributes = { "postalCode", "email" };
+	private const string EmailAttribute = "email";
+
+	private static readonly string[] EmailOnly = { EmailAttribute };
+	private static readonly string[] BothAttributes = { "postalCode", EmailAttribute };
 
 	[Fact]
 	public void ExportWithoutARecipientIsRejected()
@@ -46,7 +48,7 @@ public sealed class SharableTests
 		byte[]? postalCode = opened.GetAttributeValue("postalCode");
 		Assert.Equal("12345", Encoding.UTF8.GetString(postalCode!));
 
-		byte[]? email = opened.GetAttributeValue("email");
+		byte[]? email = opened.GetAttributeValue(EmailAttribute);
 		Assert.Equal("john@example.com", Encoding.UTF8.GetString(email!));
 
 		Assert.Null(opened.GetAttributeBuffer("doesNotExist"));
@@ -71,7 +73,7 @@ public sealed class SharableTests
 			.Serial(7)
 			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
 			.SetAttribute("postalCode", sensitive: false, "12345")
-			.SetAttribute("email", sensitive: true, "john@example.com")
+			.SetAttribute(EmailAttribute, sensitive: true, "john@example.com")
 			.Build();
 	}
 }

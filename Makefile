@@ -50,7 +50,7 @@ test: build node-harness
 
 # Build the TypeScript harnesses (installs deps + compiles every entry)
 $(HARNESS_DIR)/node_modules/.package-lock.json: $(HARNESS_DIR)/package-lock.json
-	cd $(HARNESS_DIR) && npm ci
+	cd $(HARNESS_DIR) && npm ci --ignore-scripts && npm rebuild sqlite3
 
 $(HARNESS_DIR)/dist/.built: $(HARNESS_DIR)/node_modules/.package-lock.json $(HARNESS_SOURCES)
 	cd $(HARNESS_DIR) && npm run build

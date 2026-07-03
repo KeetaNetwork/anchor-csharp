@@ -47,8 +47,10 @@ jobs:
           subject-path: "artifacts/*.nupkg"
 
       - name: Push
+        env:
+          NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
         run: >
           dotnet nuget push "artifacts/*.nupkg"
           --source "https://nuget.pkg.github.com/KeetaNetwork/index.json"
-          --api-key "${{ secrets.GITHUB_TOKEN }}"
+          --api-key "$NUGET_API_KEY"
           --skip-duplicate

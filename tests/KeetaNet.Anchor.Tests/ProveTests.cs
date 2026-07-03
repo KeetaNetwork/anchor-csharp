@@ -9,6 +9,8 @@ namespace KeetaNet.Anchor.Tests;
 /// </summary>
 public sealed class ProveTests
 {
+	private const string EmailAttribute = "email";
+
 	[Theory]
 	[MemberData(nameof(TestSeeds.Algorithms), MemberType = typeof(TestSeeds))]
 	public void ProofValidatesForItsAttributeOnly(string subjectAlgorithm)
@@ -24,16 +26,16 @@ public sealed class ProveTests
 			.IssuerName("Issuer")
 			.Serial(7)
 			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
-			.SetAttribute("email", sensitive: true, "user@example.com")
+			.SetAttribute(EmailAttribute, sensitive: true, "user@example.com")
 			.SetAttribute("fullName", sensitive: true, "Test User")
 			.Build();
 
-		AttributeProof proof = leaf.GetProof("email", subject);
+		AttributeProof proof = leaf.GetProof(EmailAttribute, subject);
 		Assert.NotEmpty(proof.Value);
 		Assert.NotEmpty(proof.Salt);
-		Assert.True(leaf.ValidateProof("email", subject, proof));
+		Assert.True(leaf.ValidateProof(EmailAttribute, subject, proof));
 
 		AttributeProof other = leaf.GetProof("fullName", subject);
-		Assert.False(leaf.ValidateProof("email", subject, other));
+		Assert.False(leaf.ValidateProof(EmailAttribute, subject, other));
 	}
 }
