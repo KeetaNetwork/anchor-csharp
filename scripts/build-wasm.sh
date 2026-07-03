@@ -27,24 +27,47 @@ checksum() {
 # rasn-compiler probes `$CARGO_HOME/bin/rustfmt` and `$CARGO`-adjacent
 # `rustfmt` without the .exe suffix. When both miss it silently emits
 # unformatted bindings that break the keetanetwork-asn1 build. Shim
-# extension-less copies for it.
+# extension-less copies at both probe paths and fail loudly when they
+# cannot be provisioned or executed.
 shim_rustfmt_for_windows() {
 	[[ "${OS:-}" == "Windows_NT" ]] || return 0
 
-	local cargo_bin="${CARGO_HOME:-${USERPROFILE}/.cargo}/bin"
-	if [[ -f "${cargo_bin}/rustfmt.exe" && ! -f "${cargo_bin}/rustfmt" ]]; then
-		echo "build-wasm: shimming extension-less rustfmt in ${cargo_bin}"
-		cp "${cargo_bin}/rustfmt.exe" "${cargo_bin}/rustfmt"
+	echo "build-wasm: windows rustfmt shim (CARGO_HOME=${CARGO_HOME:-<unset>})"
+
+	# `$CARGO` inside build scripts points at the toolchain's cargo, so the
+	# adjacent-probe directory is the toolchain bin, not the rustup proxies.
+	local toolchain_bin
+	toolchain_bin="$(dirname "$(cygpath -u "$(rustup which cargo)")")"
+	echo "build-wasm: toolchain bin is ${toolchain_bin}"
+
+	if [[ ! -f "${toolchain_bin}/rustfmt.exe" ]]; then
+		echo "build-wasm: rustfmt missing from the toolchain; installing the component"
+		rustup component add rustfmt
 	fi
 
-	local toolchain_rustfmt
-	toolchain_rustfmt="$(rustup which rustfmt 2>/dev/null || true)"
-	if [[ "${toolchain_rustfmt}" == *.exe && -f "${toolchain_rustfmt}" ]]; then
-		local bare_rustfmt="${toolchain_rustfmt%.exe}"
-		if [[ ! -f "${bare_rustfmt}" ]]; then
-			echo "build-wasm: shimming extension-less rustfmt in the toolchain bin dir"
-			cp "${toolchain_rustfmt}" "${bare_rustfmt}"
-		fi
+	cp "${toolchain_bin}/rustfmt.exe" "${toolchain_bin}/rustfmt"
+	"${toolchain_bin}/rustfmt" --version
+
+	# Cover the `$CARGO_HOME/bin` probe too, via the rustup proxy when one
+	# exists there (proxies dispatch on their basename).
+	local cargo_bin
+	cargo_bin="$(cygpath -u "${CARGO_HOME:-${USERPROFILE}/.cargo}")/bin"
+	if [[ -f "${cargo_bin}/rustfmt.exe" ]]; then
+		cp "${cargo_bin}/rustfmt.exe" "${cargo_bin}/rustfmt"
+		"${cargo_bin}/rustfmt" --version
+	fi
+
+	echo "build-wasm: bare rustfmt shims verified"
+}
+
+# A cached target dir can hold codegen output produced while rustfmt was
+# unreachable (actions/cache saves even from failed jobs). Purge the
+# keetanetwork-asn1 build-script outputs so its codegen always reruns.
+purge_stale_asn1_outputs() {
+	local build_root="${CRATE_DIR}/target/wasm32-wasip1/release"
+	if compgen -G "${build_root}/build/keetanetwork-asn1-*" >/dev/null; then
+		echo "build-wasm: purging cached keetanetwork-asn1 codegen so it reruns"
+		rm -rf "${build_root}"/build/keetanetwork-asn1-* "${build_root}"/.fingerprint/keetanetwork-asn1-*
 	fi
 }
 
@@ -100,6 +123,7 @@ build_artifact() {
 shim_rustfmt_for_windows
 require_wasip1_target
 fetch_crate
+purge_stale_asn1_outputs
 build_artifact
 
 mkdir -p "$(dirname "${DEST}")"
