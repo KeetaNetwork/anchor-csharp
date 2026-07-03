@@ -67,7 +67,7 @@ copy_bare_rustfmt() {
 	local bin_dir="$1"
 	local src dest
 	src="$(cygpath -w "${bin_dir}/rustfmt.exe")"
-	dest="$(cygpath -w "${bin_dir}/rustfmt")"
+	dest="$(cygpath -w "${bin_dir}")/rustfmt"
 	powershell -NoProfile -Command "Copy-Item -LiteralPath '${src}' -Destination '${dest}' -Force"
 
 	if [[ -z "$(find "${bin_dir}" -maxdepth 1 -name rustfmt)" ]]; then
