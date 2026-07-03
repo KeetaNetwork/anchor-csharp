@@ -27,9 +27,8 @@ Use the `Makefile`, not raw `dotnet`, for every task:
 | Command | Purpose |
 | --- | --- |
 | `make build` | Build the solution (builds the wasm core first if missing) |
-| `make test` | Run all tests: unit + e2e against the live TypeScript anchor |
+| `make test` | Run all tests with coverage: unit + e2e against the live TypeScript anchor |
 | `make node-harness` | Install + build the TypeScript interop harnesses |
-| `make coverage` | Run unit tests with code coverage |
 | `make do-lint` | Lint with formatting fixes (C#, spelling, harness) |
 | `make do-lint-ci` | Lint for CI (check only, no fixes) |
 | `make pack` | Produce the NuGet package |

@@ -1,13 +1,10 @@
-.PHONY: help developer restore build rebuild do-lint do-lint-ci test coverage pack clean wasm node-harness release
+.PHONY: help developer restore build rebuild do-lint do-lint-ci test pack clean wasm node-harness release
 
 # Build configuration (Debug or Release)
 CONFIG ?= Release
 
 # Solution under build
 SLN := KeetaNet.Anchor.slnx
-
-# Unit test project
-UNIT_TESTS := tests/KeetaNet.Anchor.Tests/KeetaNet.Anchor.Tests.csproj
 
 # TypeScript interop harness (reference anchor + in-memory test node)
 HARNESS_DIR := tests/node-harness
@@ -44,9 +41,11 @@ do-lint-ci: node-harness
 	npx --yes cspell --config cspell.yaml --no-progress "src/**/*.cs" "tests/**/*.cs" "tests/node-harness/src/**" "scripts/**" "Makefile" "*.md"
 	cd $(HARNESS_DIR) && npm run lint
 
-# Run all tests: unit + e2e against the live TypeScript reference anchor
+# Run all tests (unit + e2e against the live TypeScript reference anchor)
+# with code coverage (cobertura, for SonarCloud conversion)
 test: build node-harness
-	dotnet test $(SLN) -c $(CONFIG) --no-build
+	dotnet test $(SLN) -c $(CONFIG) --no-build \
+		-- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
 
 # Build the TypeScript harnesses (installs deps + compiles every entry)
 $(HARNESS_DIR)/node_modules/.package-lock.json: $(HARNESS_DIR)/package-lock.json
@@ -57,11 +56,6 @@ $(HARNESS_DIR)/dist/.built: $(HARNESS_DIR)/node_modules/.package-lock.json $(HAR
 	touch $@
 
 node-harness: $(HARNESS_DIR)/dist/.built
-
-# Run unit tests with code coverage (cobertura, for SonarCloud conversion)
-coverage: build
-	dotnet test $(UNIT_TESTS) -c $(CONFIG) --no-build \
-		-- --coverage --coverage-output-format cobertura --coverage-output coverage.cobertura.xml
 
 # Produce the NuGet packages (.nupkg + .snupkg)
 pack: build
@@ -104,9 +98,8 @@ help:
 	@echo "  make restore      - Restore NuGet dependencies"
 	@echo "  make build        - Build the solution (CONFIG=$(CONFIG))"
 	@echo "  make rebuild      - Clean then build"
-	@echo "  make test         - Run all tests (builds node-harness; unit + e2e)"
+	@echo "  make test         - Run all tests with coverage (builds node-harness; unit + e2e)"
 	@echo "  make node-harness - Install + build the TypeScript interop harnesses"
-	@echo "  make coverage     - Run unit tests with code coverage"
 	@echo "  make do-lint      - Lint code with formatting fixes (C# + harness + spelling)"
 	@echo "  make pack         - Produce the NuGet packages into $(ARTIFACTS)/"
 	@echo "  make wasm         - Build the P1 wasm core from the pinned crates.io release"
