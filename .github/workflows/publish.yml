@@ -24,10 +24,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Build wasm core
         run: bash scripts/build-wasm.sh

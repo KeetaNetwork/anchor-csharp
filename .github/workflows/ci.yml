@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  RUST_TOOLCHAIN: "1.94.0"
-
 jobs:
   build-test:
     name: Build & Test (${{ matrix.os }})
@@ -29,10 +26,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Cache wasm build
         uses: actions/cache@v4
@@ -41,7 +35,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -108,10 +102,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Cache wasm build
         uses: actions/cache@v4
@@ -120,7 +111,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
 
       - name: Build wasm core
         run: bash scripts/build-wasm.sh
@@ -171,10 +162,7 @@ jobs:
           global-json-file: global.json
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-        with:
-          toolchain: "1.94.0"
-          targets: wasm32-wasip1
+        uses: dsherret/rust-toolchain-file@3551321aa44dd44a0393eb3b6bdfbc5d25ecf621 # v1
 
       - name: Cache wasm build
         uses: actions/cache@v4
@@ -183,7 +171,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
 
       - name: Build wasm core
         run: bash scripts/build-wasm.sh
