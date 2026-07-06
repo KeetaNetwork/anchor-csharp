@@ -74,6 +74,29 @@ public sealed class KycClient : WasmObject
 		return ParseOutcome<Certificates, CertificatesOutcome>(payload, "certificates", ready => new CertificatesOutcome(ready, null), retry => new CertificatesOutcome(null, retry));
 	}
 
+	/// <summary>
+	/// Every certificate <paramref name="account"/> (a <c>keeta_</c> public key
+	/// string) has published on-chain, each with the intermediates recorded
+	/// alongside it. An account with no published certificates yields an empty list.
+	/// </summary>
+	public async Task<IReadOnlyList<Certificate>> GetAllCertificatesAsync(
+		string account,
+		CancellationToken cancellationToken = default)
+	{
+		byte[] payload = await Runtime.KycGetAllCertificates(Handle, account, cancellationToken).ConfigureAwait(false);
+		return KeetaJson.ReadList<Certificate>(payload);
+	}
+
+	/// <summary>
+	/// Every certificate <paramref name="account"/> has published on-chain, each
+	/// with the intermediates recorded alongside it. An account with no published
+	/// certificates yields an empty list.
+	/// </summary>
+	public Task<IReadOnlyList<Certificate>> GetAllCertificatesAsync(
+		Crypto.Account account,
+		CancellationToken cancellationToken = default) =>
+		GetAllCertificatesAsync(account.Address, cancellationToken);
+
 	/// <summary>Parse <paramref name="provider"/>'s advertised issuer CA certificate.</summary>
 	/// <remarks>Use it as a trusted root when verifying an issued <see cref="Crypto.KycCertificate"/>.</remarks>
 	public Crypto.Certificate GetCA(KycProvider provider) =>

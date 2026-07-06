@@ -4,8 +4,8 @@
 set -euo pipefail
 
 CRATE_NAME="keetanetwork-anchor-client-wasi"
-CRATE_VERSION="0.1.1"
-CRATE_SHA256="dd5c19da144a320d23d5b0b1af392ea6c94f6b7cb584e490bcf42155c768d9d6"
+CRATE_VERSION="0.1.3"
+CRATE_SHA256="ebf6df527b9b0c5f9981664eafc5d65a3c99e9ab07775560ae8b2a1354b2866c"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${ROOT}/.wasm-build"

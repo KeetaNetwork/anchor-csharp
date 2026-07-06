@@ -29,6 +29,27 @@ internal sealed record KycAnchor(string Api, string Root, string Ca, string Prov
 }
 
 /// <summary>
+/// A certificate chain the harness published on-chain for a fresh holder
+/// <see cref="Account"/>: <see cref="Leaf"/> recorded with <see cref="Ca"/> as
+/// its intermediate bundle, and <see cref="Bare"/> recorded without
+/// intermediates, so a ledger read serves both shapes.
+/// </summary>
+internal sealed record PublishedChain(string Account, string Leaf, string Bare, string Ca)
+{
+	/// <summary>Publish the two-record chain on the running anchor's node.</summary>
+	public static PublishedChain Publish(NodeHarness harness)
+	{
+		JsonElement published = harness.Request("publishCertificateChain", new JsonObject());
+
+		return new PublishedChain(
+			published.GetProperty("account").GetString()!,
+			published.GetProperty("leaf").GetString()!,
+			published.GetProperty("bare").GetString()!,
+			published.GetProperty("ca").GetString()!);
+	}
+}
+
+/// <summary>
 /// A live asset-movement anchor HTTP server started by the harness, alongside
 /// the fixture values its callbacks report back.
 /// </summary>

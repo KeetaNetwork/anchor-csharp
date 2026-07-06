@@ -69,4 +69,46 @@ public sealed class KycFlowTests
 
 		harness.Shutdown();
 	}
+
+	[Fact]
+	public async Task LedgerReadServesEveryPublishedCertificateRecord()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("kyc");
+		KycAnchor anchor = KycAnchor.Start(harness);
+
+		using var runtime = WasmRuntime.Load();
+		using Account signer = runtime.Accounts.FromSeed(E2eSeeds.Caller, 0, E2eSeeds.Secp256k1);
+		using KycClient client = runtime.CreateKycClient(anchor.Api, anchor.Root, signer);
+
+		// An account that never published anything reads back as an empty list;
+		// the Account overload resolves the address itself, as the reference does.
+		IReadOnlyList<Certificate> none = await client.GetAllCertificatesAsync(signer, cancellationToken);
+		Assert.Empty(none);
+
+		// The harness records two certificates for a fresh holder: a leaf with
+		// the CA as its intermediate bundle, and a bare leaf without one.
+		PublishedChain chain = PublishedChain.Publish(harness);
+
+		IReadOnlyList<Certificate> records = await client.GetAllCertificatesAsync(chain.Account, cancellationToken);
+		Assert.Equal(2, records.Count);
+
+		Certificate chained = Assert.Single(records, record => record.Intermediates.Count == 1);
+		Certificate bare = Assert.Single(records, record => record.Intermediates.Count == 0);
+
+		// Each served PEM must parse to the exact certificate the harness
+		// published, byte-for-byte at the DER level.
+		AssertSameCertificate(runtime, chain.Leaf, chained.Value);
+		AssertSameCertificate(runtime, chain.Ca, chained.Intermediates[0]);
+		AssertSameCertificate(runtime, chain.Bare, bare.Value);
+
+		harness.Shutdown();
+	}
+
+	private static void AssertSameCertificate(WasmRuntime runtime, string expectedPem, string servedPem)
+	{
+		using CryptoCertificate expected = runtime.Certificates.Parse(expectedPem);
+		using CryptoCertificate served = runtime.Certificates.Parse(servedPem);
+		Assert.Equal(expected.ToDer(), served.ToDer());
+	}
 }

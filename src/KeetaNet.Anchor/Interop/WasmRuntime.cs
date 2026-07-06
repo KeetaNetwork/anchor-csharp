@@ -232,6 +232,9 @@ public sealed partial class WasmRuntime : IDisposable
 	internal Task<byte[]> KycGetVerificationStatus(int handle, string providerJson, string id, CancellationToken cancellationToken) =>
 		RunAsync(() => WithProviderAndArg("keeta_kyc_get_verification_status", handle, providerJson, id), cancellationToken);
 
+	internal Task<byte[]> KycGetAllCertificates(int handle, string account, CancellationToken cancellationToken) =>
+		RunAsync(() => WithHandleAndText("keeta_kyc_get_all_certificates", handle, account), cancellationToken);
+
 	internal void KycFree(int handle) => RunFree("keeta_kyc_free", handle);
 
 	/// <summary>Perform the buffered request and return the response byte length.</summary>
