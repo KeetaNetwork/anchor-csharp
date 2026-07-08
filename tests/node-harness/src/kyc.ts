@@ -16,9 +16,10 @@ import type * as CertificatesModule from '@keetanetwork/anchor/lib/certificates.
 import type * as KeetaNetModule from '@keetanetwork/keetanet-client';
 
 import type { ChainNode, ServiceMetadata } from './chain.js';
-import { bootChainNode } from './chain.js';
 import type { HarnessResponse } from './core.js';
+import { bootChainNode } from './chain.js';
 import { referenceResolver, runHarness } from './core.js';
+import { reviveValue } from './values.js';
 
 const refs = referenceResolver();
 const resolver = await refs.anchor<typeof ResolverModule>('lib/resolver.js');
@@ -345,46 +346,6 @@ async function handlePublishCertificateChain(): Promise<HarnessResponse> {
 		bare: bare.toPEM(),
 		ca: current.ca.toPEM()
 	});
-}
-
-/**
- * Recursively revive a JSON request value into the shape the reference builder
- * expects: an object `{ "__date": "<ISO>" }` becomes a `Date` (at any depth),
- * everything else passes through unchanged.
- */
-function reviveValue(value: unknown): unknown {
-	if (Array.isArray(value)) {
-		return(value.map(reviveValue));
-	}
-
-	if (value !== null && typeof value === 'object') {
-		const entries = Object.entries(value);
-		const dateEntry = entries.find(([key]) => key === '__date');
-		if (dateEntry !== undefined && typeof dateEntry[1] === 'string') {
-			return(new Date(dateEntry[1]));
-		}
-
-		/*
-		 * A Node `Buffer` JSON form (`{ type: 'Buffer', data: [..] }`) revives to a
-		 * Buffer so an OCTET STRING (e.g. a document reference digest) encodes as
-		 * the reference implementation expects.
-		 */
-		const typeEntry = entries.find(([key]) => key === 'type');
-		const dataEntry = entries.find(([key]) => key === 'data');
-		const data: unknown = dataEntry?.[1];
-		if (typeEntry?.[1] === 'Buffer' && Array.isArray(data) && data.every((byte): byte is number => typeof byte === 'number')) {
-			return(Buffer.from(data));
-		}
-
-		const revived: { [key: string]: unknown } = {};
-		for (const [key, nested] of entries) {
-			revived[key] = reviveValue(nested);
-		}
-
-		return(revived);
-	}
-
-	return(value);
 }
 
 /**

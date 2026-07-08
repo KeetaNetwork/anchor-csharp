@@ -22,6 +22,28 @@ public sealed partial class WasmRuntime
 			return TakeHandle(result);
 		});
 
+	internal int SharableFromCertificateWithReferences(
+		int certificateHandle,
+		int subjectHandle,
+		int[] intermediates,
+		string[] names,
+		IReadOnlyDictionary<string, byte[]> blobs) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			byte[] labelsJson = JsonSerializer.SerializeToUtf8Bytes(names);
+			Dictionary<string, string> encodedBlobs = blobs.ToDictionary(
+				pair => pair.Key,
+				pair => Convert.ToBase64String(pair.Value));
+			byte[] blobsJson = JsonSerializer.SerializeToUtf8Bytes(encodedBlobs);
+			Argument bridges = arguments.WriteHandles(intermediates);
+			Argument labels = arguments.WriteBytes(labelsJson);
+			Argument payload = arguments.WriteBytes(blobsJson);
+
+			int result = Invoke<int, int, int, int, int, int, int, int, int>("keeta_sharable_from_certificate_with_references", certificateHandle, subjectHandle, bridges.Pointer, bridges.Length, labels.Pointer, labels.Length, payload.Pointer, payload.Length);
+			return TakeHandle(result);
+		});
+
 	internal int SharableFromEncoded(byte[] data, int[] principals) =>
 		ParseBytesWithPrincipals("keeta_sharable_from_encoded", data, principals);
 
@@ -59,6 +81,17 @@ public sealed partial class WasmRuntime
 
 	internal byte[] SharableAttributeValue(int handle, string name) =>
 		Run(() => WithHandleAndText("keeta_sharable_attribute_value", handle, name));
+
+	internal byte[] SharableReferenceBlob(int handle, string name, string id) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument label = arguments.Write(name);
+			Argument key = arguments.Write(id);
+
+			int result = Invoke<int, int, int, int, int, int>("keeta_sharable_reference_blob", handle, label.Pointer, label.Length, key.Pointer, key.Length);
+			return TakeBytes(result);
+		});
 
 	internal void SharableFree(int handle) => RunFree("keeta_sharable_free", handle);
 }

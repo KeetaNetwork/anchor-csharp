@@ -55,7 +55,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account account,
 		CancellationToken cancellationToken = default)
 	{
-		Response5 state = await Attempt(() => _api.GetAccountStateAsync(account.Address, cancellationToken)).ConfigureAwait(false);
+		Response5 state = await Attempt(() => _api.GetAccountStateAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return DecodeState(state.CurrentHeadBlock, state.CurrentHeadBlockHeight, state.Representative, state.Info, state.Balances);
 	}
 
@@ -67,7 +67,7 @@ public sealed class NodeClient : IDisposable
 		IReadOnlyList<Crypto.Account> accounts,
 		CancellationToken cancellationToken = default)
 	{
-		string joined = string.Join(",", accounts.Select(account => account.Address));
+		string joined = string.Join(",", accounts.Select(account => account.PublicKeyString));
 		ICollection<Anonymous> states = await Attempt(() => _api.GetAccountStatesAsync(joined, cancellationToken)).ConfigureAwait(false);
 
 		return states
@@ -116,7 +116,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account representative,
 		CancellationToken cancellationToken = default)
 	{
-		GeneratedRepresentative named = await Attempt(() => _api.GetRepresentativeAsync(representative.Address, cancellationToken)).ConfigureAwait(false);
+		GeneratedRepresentative named = await Attempt(() => _api.GetRepresentativeAsync(representative.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return DecodeRepresentative(named);
 	}
 
@@ -148,7 +148,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account account,
 		CancellationToken cancellationToken = default)
 	{
-		Response6 response = await Attempt(() => _api.GetAccountBalancesAsync(account.Address, cancellationToken)).ConfigureAwait(false);
+		Response6 response = await Attempt(() => _api.GetAccountBalancesAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return DecodeBalances(response.Balances);
 	}
 
@@ -158,7 +158,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account token,
 		CancellationToken cancellationToken = default)
 	{
-		Response7 response = await Attempt(() => _api.GetAccountBalanceAsync(account.Address, token.Address, cancellationToken)).ConfigureAwait(false);
+		Response7 response = await Attempt(() => _api.GetAccountBalanceAsync(account.PublicKeyString, token.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return OptionalHexAmount(response.Balance) ?? BigInteger.Zero;
 	}
 
@@ -171,7 +171,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account account,
 		CancellationToken cancellationToken = default)
 	{
-		Response19 response = await Attempt(() => _api.GetAccountCertificatesAsync(account.Address, cancellationToken)).ConfigureAwait(false);
+		Response19 response = await Attempt(() => _api.GetAccountCertificatesAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		ICollection<GeneratedCertificate> records = response.Certificates ?? Array.Empty<GeneratedCertificate>();
 
 		// A record with no certificate body is the node's "not found" shape.
@@ -192,7 +192,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.CertificateHash certificateHash,
 		CancellationToken cancellationToken = default)
 	{
-		Response20 record = await Attempt(() => _api.GetCertificateByHashAsync(account.Address, certificateHash.ToString(), cancellationToken)).ConfigureAwait(false);
+		Response20 record = await Attempt(() => _api.GetCertificateByHashAsync(account.PublicKeyString, certificateHash.ToString(), cancellationToken)).ConfigureAwait(false);
 		if (record.Certificate1 is null)
 		{
 			return null;
@@ -328,7 +328,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account? delegated = null;
 		if (representative is not null)
 		{
-			delegated = _runtime.Accounts.FromAccount(representative);
+			delegated = _runtime.Accounts.FromPublicKeyString(representative);
 		}
 
 		Crypto.BlockHash? head = null;
@@ -346,7 +346,7 @@ public sealed class NodeClient : IDisposable
 	/// </summary>
 	private NodeRepresentative DecodeRepresentative(GeneratedRepresentative representative) =>
 		new(
-			_runtime.Accounts.FromAccount(representative.Representative1),
+			_runtime.Accounts.FromPublicKeyString(representative.Representative1),
 			OptionalHexAmount(representative.Weight) ?? BigInteger.Zero,
 			representative.Endpoints?.Api);
 
@@ -361,7 +361,7 @@ public sealed class NodeClient : IDisposable
 		return balances
 			.Where(entry => entry.Token is not null)
 			.Select(entry => new TokenBalance(
-				_runtime.Accounts.FromAccount(entry.Token),
+				_runtime.Accounts.FromPublicKeyString(entry.Token),
 				OptionalHexAmount(entry.Balance) ?? BigInteger.Zero,
 				OptionalHexAmount(entry.Pending) ?? BigInteger.Zero))
 			.ToArray();

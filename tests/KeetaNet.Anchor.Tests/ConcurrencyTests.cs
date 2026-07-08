@@ -22,7 +22,7 @@ public sealed class ConcurrencyTests
 	{
 		using var runtime = WasmRuntime.Load();
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		string expectedAddress = account.Address;
+		string expectedAddress = account.PublicKeyString;
 
 		Task<bool>[] work = Enumerable.Range(0, 32)
 			.Select(index => Task.Run(() => SignRoundTrips(account, expectedAddress, index)))
@@ -37,7 +37,7 @@ public sealed class ConcurrencyTests
 		byte[] message = BitConverter.GetBytes(index);
 		byte[] signature = account.Sign(message);
 		bool valid = account.Verify(message, signature);
-		bool addressStable = account.Address == expectedAddress;
+		bool addressStable = account.PublicKeyString == expectedAddress;
 
 		return valid && addressStable;
 	}
@@ -60,7 +60,7 @@ public sealed class ConcurrencyTests
 	private static string DeriveAddress(WasmRuntime runtime, uint index)
 	{
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, index, TestSeeds.DefaultAlgorithm);
-		return account.Address;
+		return account.PublicKeyString;
 	}
 
 	[Fact]
@@ -68,7 +68,7 @@ public sealed class ConcurrencyTests
 	{
 		using var runtime = WasmRuntime.Load();
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using KycClient client = runtime.CreateKycClient(TestSeeds.NonRoutableAnchor, account.Address, account);
+		using KycClient client = runtime.CreateKycClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
 
 		using var cancellation = new CancellationTokenSource();
 		await cancellation.CancelAsync();
@@ -88,7 +88,7 @@ public sealed class ConcurrencyTests
 
 		using var runtime = WasmRuntime.Load();
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using KycClient client = runtime.CreateKycClient($"http://127.0.0.1:{port}", account.Address, account);
+		using KycClient client = runtime.CreateKycClient($"http://127.0.0.1:{port}", account.PublicKeyString, account);
 
 		using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
 

@@ -2,7 +2,7 @@ namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
 /// A Keeta account: a signer derived from a seed, or a read-only account parsed
-/// from an address. The key material lives inside the wasm core.
+/// from a public-key string. The key material lives inside the wasm core.
 /// </summary>
 public sealed class Account : WasmObject
 {
@@ -11,8 +11,8 @@ public sealed class Account : WasmObject
 	{
 	}
 
-	/// <summary>The account's textual <c>keeta_...</c> address.</summary>
-	public string Address => Runtime.AccountAddress(Handle);
+	/// <summary>The account's textual <c>keeta_...</c> public-key string.</summary>
+	public string PublicKeyString => Runtime.AccountAddress(Handle);
 
 	/// <summary>The account's algorithm name.</summary>
 	public string Algorithm => Runtime.AccountAlgorithm(Handle);

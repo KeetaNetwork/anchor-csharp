@@ -44,7 +44,7 @@ internal sealed class AssetSession : IDisposable
 		{
 			WasmRuntime runtime = WasmRuntime.Load();
 			Account signer = runtime.Accounts.FromSeed(E2eSeeds.Caller, 0, E2eSeeds.Secp256k1);
-			AssetAnchor anchor = AssetAnchor.Start(harness, blockCaller ? signer.Address : null);
+			AssetAnchor anchor = AssetAnchor.Start(harness, blockCaller ? signer.PublicKeyString : null);
 			AssetMovementClient client = runtime.CreateAssetMovementClient(anchor.NodeApi, anchor.Root, signer);
 
 			return new AssetSession(harness, anchor, runtime, signer, client);

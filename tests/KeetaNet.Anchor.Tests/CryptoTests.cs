@@ -21,7 +21,7 @@ public sealed class CryptoTests
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, algorithm);
 
 		Assert.Equal(algorithm, account.Algorithm);
-		Assert.StartsWith("keeta_", account.Address, StringComparison.Ordinal);
+		Assert.StartsWith("keeta_", account.PublicKeyString, StringComparison.Ordinal);
 
 		byte[] message = Encoding.UTF8.GetBytes("crypto over p1");
 		byte[] signature = account.Sign(message);
@@ -56,14 +56,14 @@ public sealed class CryptoTests
 
 		// An address-parsed account is the same identity and verifies the
 		// signer's work, but carries no key material to sign with.
-		using Account fromAccount = runtime.Accounts.FromAccount(signer.Address);
-		Assert.Equal(signer.Address, fromAccount.Address);
+		using Account fromAccount = runtime.Accounts.FromPublicKeyString(signer.PublicKeyString);
+		Assert.Equal(signer.PublicKeyString, fromAccount.PublicKeyString);
 		Assert.True(fromAccount.Verify(message, signature));
 		Assert.Throws<KeetaException>(() => fromAccount.Sign(message));
 
 		// The type-prefixed transport key round-trips to the same identity.
 		using Account fromPublicKey = runtime.Accounts.FromPublicKeyAndType(signer.PublicKeyAndType);
-		Assert.Equal(signer.Address, fromPublicKey.Address);
+		Assert.Equal(signer.PublicKeyString, fromPublicKey.PublicKeyString);
 		Assert.True(fromPublicKey.Verify(message, signature));
 	}
 
@@ -73,7 +73,7 @@ public sealed class CryptoTests
 		using var runtime = WasmRuntime.Load();
 		using Account imported = runtime.Accounts.FromPrivateKey(TestSeeds.Issuer, TestSeeds.DefaultAlgorithm);
 
-		Assert.StartsWith("keeta_", imported.Address, StringComparison.Ordinal);
+		Assert.StartsWith("keeta_", imported.PublicKeyString, StringComparison.Ordinal);
 
 		byte[] message = Encoding.UTF8.GetBytes("imported key signer");
 		byte[] signature = imported.Sign(message);
@@ -82,7 +82,7 @@ public sealed class CryptoTests
 		// The raw public half plus its algorithm names the same on-ledger identity.
 		string rawPublicKey = imported.PublicKeyAndType[2..];
 		using Account publicHalf = runtime.Accounts.FromPublicKey(rawPublicKey, TestSeeds.DefaultAlgorithm);
-		Assert.Equal(imported.Address, publicHalf.Address);
+		Assert.Equal(imported.PublicKeyString, publicHalf.PublicKeyString);
 	}
 
 	[Fact]

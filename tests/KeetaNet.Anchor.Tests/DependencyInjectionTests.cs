@@ -25,10 +25,26 @@ public sealed class DependencyInjectionTests
 			Assert.Same(runtime, resolvedAgain);
 
 			using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ed25519");
-			Assert.StartsWith("keeta_", account.Address, StringComparison.Ordinal);
+			Assert.StartsWith("keeta_", account.PublicKeyString, StringComparison.Ordinal);
 		}
 
 		Assert.True(runtime.IsDisposed);
+	}
+
+	[Fact]
+	public void RegistersTheRuntimeFactorySurfacesForDirectInjection()
+	{
+		var services = new ServiceCollection();
+		services.AddKeetaNetAnchor();
+
+		using ServiceProvider provider = services.BuildServiceProvider();
+		WasmRuntime runtime = provider.GetRequiredService<WasmRuntime>();
+
+		Assert.Same(runtime.Accounts, provider.GetRequiredService<AccountFactory>());
+		Assert.Same(runtime.Certificates, provider.GetRequiredService<CertificateFactory>());
+		Assert.Same(runtime.KycCertificates, provider.GetRequiredService<KycCertificateFactory>());
+		Assert.Same(runtime.Containers, provider.GetRequiredService<EncryptedContainerFactory>());
+		Assert.Same(runtime.Sharables, provider.GetRequiredService<SharableCertificateAttributesFactory>());
 	}
 
 	[Fact]

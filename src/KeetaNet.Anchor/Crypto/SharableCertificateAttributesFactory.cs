@@ -29,6 +29,50 @@ public sealed class SharableCertificateAttributesFactory
 		return new(_runtime, handle);
 	}
 
+	/// <summary>
+	/// Build like
+	/// <see cref="FromCertificate(KycCertificate, Account, IEnumerable{Certificate}?, IEnumerable{string}?)"/>,
+	/// additionally ingesting the
+	/// caller-fetched external <paramref name="blobs"/>: raw fetched bytes keyed
+	/// by reference id, as discovered with
+	/// <see cref="KycCertificate.GetExternalReferences"/>.
+	/// </summary>
+	public SharableCertificateAttributes FromCertificate(
+		KycCertificate certificate,
+		Account subject,
+		IReadOnlyDictionary<string, byte[]> blobs,
+		IEnumerable<Certificate>? intermediates = null,
+		IEnumerable<string>? names = null)
+	{
+		int[] bridges = Handles.Of(intermediates);
+		string[] labels = (names ?? Enumerable.Empty<string>()).ToArray();
+		int handle = _runtime.SharableFromCertificateWithReferences(certificate.Handle, subject.Handle, bridges, labels, blobs);
+
+		return new(_runtime, handle);
+	}
+
+	/// <summary>
+	/// Build like the blobs overload with discovery and fetch included:
+	/// discover the named attributes' references, fetch each blob with
+	/// <paramref name="httpClient"/> (a <c>data:</c> URL decodes without
+	/// touching the network), and ingest them, in one call.
+	/// </summary>
+	public async Task<SharableCertificateAttributes> FromCertificate(
+		KycCertificate certificate,
+		Account subject,
+		HttpClient httpClient,
+		IEnumerable<Certificate>? intermediates = null,
+		IEnumerable<string>? names = null,
+		CancellationToken cancellationToken = default)
+	{
+		string[] labels = (names ?? Enumerable.Empty<string>()).ToArray();
+		IReadOnlyList<AttributeReference> references = certificate.GetExternalReferences(subject, labels);
+		IReadOnlyDictionary<string, byte[]> blobs =
+			await ExternalReferences.FetchBlobs(httpClient, references, cancellationToken).ConfigureAwait(false);
+
+		return FromCertificate(certificate, subject, blobs, intermediates, labels);
+	}
+
 	/// <summary>Open a bundle from encoded container bytes, resolved with <paramref name="principals"/>.</summary>
 	public SharableCertificateAttributes FromEncoded(byte[] data, IEnumerable<Account>? principals = null)
 	{

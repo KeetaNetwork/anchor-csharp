@@ -80,7 +80,7 @@ public sealed class AssetModelTests
 	{
 		using var runtime = WasmRuntime.Load();
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.Address, account);
+		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
 
 		// One well-formed markdown disclaimer and one with an unknown purpose;
 		// the malformed entry is skipped, mirroring the reference.
@@ -109,7 +109,7 @@ public sealed class AssetModelTests
 	{
 		using var runtime = WasmRuntime.Load();
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.Address, account);
+		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
 
 		// The reference TokenMetadataJSON publishes decimalPlaces as a number
 		// or a numeric string; both must decode, and garbage must read absent.

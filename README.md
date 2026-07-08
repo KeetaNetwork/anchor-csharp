@@ -60,25 +60,25 @@ builder.Services.AddKeetaNetAnchor();
 // Any service: inject the singleton and create what you need per use.
 public sealed class Onboarding(WasmRuntime runtime)
 {
-	public string NewSignerAddress()
+	public string NewSignerPublicKeyString()
 	{
 		string seed = runtime.Accounts.GenerateRandomSeed();
 		using Account signer = runtime.Accounts.FromSeed(seed, index: 0, algorithm: "ed25519");
-		return signer.Address;
+		return signer.PublicKeyString;
 	}
 }
 ```
 
 ### Accounts
 
-An `Account` is a signer derived from a seed, private key, or BIP39 passphrase, or a read-only account built from an address or public key. Key material never leaves the wasm core. Supported algorithms: `ed25519`, `ecdsa_secp256k1`, `ecdsa_secp256r1`.
+An `Account` is a signer derived from a seed, private key, or BIP39 passphrase, or a read-only account built from a public-key string or raw public key. Key material never leaves the wasm core. Supported algorithms: `ed25519`, `ecdsa_secp256k1`, `ecdsa_secp256r1`.
 
 ```csharp
 // Derive a signer from a fresh seed.
 string seed = runtime.Accounts.GenerateRandomSeed();
 using Account signer = runtime.Accounts.FromSeed(seed, index: 0, algorithm: "ed25519");
 
-Console.WriteLine(signer.Address);   // keeta_...
+Console.WriteLine(signer.PublicKeyString);   // keeta_...
 Console.WriteLine(signer.PublicKeyAndType); // type-prefixed hex
 
 // A watch-only view of the same identity, from the transport key.
@@ -94,7 +94,7 @@ byte[] ciphertext = signer.Encrypt("for your eyes"u8.ToArray());
 byte[] plaintext = signer.Decrypt(ciphertext);
 
 // A read-only account verifies and encrypts but cannot sign or decrypt.
-using Account watcher = runtime.Accounts.FromAccount(signer.Address);
+using Account watcher = runtime.Accounts.FromPublicKeyString(signer.PublicKeyString);
 ```
 
 ### KYC Verification
@@ -163,7 +163,7 @@ A holder can attest to one sensitive attribute without revealing the private key
 AttributeProof proof = leaf.GetProof("email", subject);
 
 // Verifier: a read-only subject account suffices.
-using Account subjectPublic = runtime.Accounts.FromAccount(subjectAddress);
+using Account subjectPublic = runtime.Accounts.FromPublicKeyString(subjectPublicKeyString);
 bool attested = leaf.ValidateProof("email", subjectPublic, proof);
 ```
 
