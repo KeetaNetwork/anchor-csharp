@@ -37,3 +37,17 @@ public sealed record AccountState(
 	Account? Representative,
 	NodeAccountInfo? Info,
 	IReadOnlyList<TokenBalance> Balances);
+
+/// <summary>
+/// A representative and its on-ledger voting weight. <see cref="ApiUrl"/> is
+/// the REST endpoint the node advertises for it: the all-representatives read
+/// includes it, the singular lookups do not.
+/// </summary>
+public sealed record NodeRepresentative(Account Account, BigInteger Weight, string? ApiUrl);
+
+/// <summary>
+/// A point-in-time XOR checksum over the node's ledger, with the approximate
+/// <see cref="Moment"/> it was taken and half the measurement window
+/// (<see cref="MomentRangeMs"/>, milliseconds).
+/// </summary>
+public sealed record LedgerChecksum(BigInteger Checksum, DateTimeOffset? Moment, double MomentRangeMs);

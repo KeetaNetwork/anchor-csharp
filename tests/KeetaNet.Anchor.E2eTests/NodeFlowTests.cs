@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Text.Json;
 
 using KeetaNet.Anchor.Crypto;
 using Xunit;
@@ -78,8 +79,8 @@ public sealed class NodeFlowTests
 		Assert.Equal(BlockHash.Parse(head!), state.HeadBlock!.Value);
 		Assert.True(state.HeadHeight >= BigInteger.One);
 
-		// Fees nibble at the funded amount; the state and the direct balance
-		// read must agree on the settled value under the base token.
+		// Fees deduct from the funded amount, so the state and the direct
+		// balance read must agree on the settled value under the base token.
 		TokenBalance settled = Assert.Single(state.Balances);
 		Assert.Equal(baseToken.Address, settled.Token.Address);
 		Assert.True(settled.Balance > BigInteger.Zero);
@@ -88,12 +89,65 @@ public sealed class NodeFlowTests
 		BigInteger direct = await client.GetAccountBalance(holder, baseToken, cancellationToken);
 		Assert.Equal(settled.Balance, direct);
 
-		// The token account's own state carries the chain-initialized supply.
+		// The token account's own state carries the chain-initialized supply,
+		// and the supply convenience serves the same value. A non-token
+		// account reports no supply at all.
 		AccountState tokenState = await client.GetAccountState(baseToken, cancellationToken);
 		Assert.NotNull(tokenState.Info);
 		Assert.NotNull(tokenState.Info!.Supply);
 		Assert.True(tokenState.Info.Supply > BigInteger.Zero);
 
+		BigInteger? supply = await client.GetTokenSupply(baseToken, cancellationToken);
+		Assert.Equal(tokenState.Info.Supply, supply);
+		Assert.Null(await client.GetTokenSupply(holder, cancellationToken));
+
+		// The batch read returns one state per account in request order,
+		// agreeing with the individual reads.
+		IReadOnlyList<AccountState> states = await client.GetAccountStates(new[] { holder, observer }, cancellationToken);
+		Assert.Equal(2, states.Count);
+		Assert.Equal(state.HeadBlock, states[0].HeadBlock);
+		Assert.Equal(settled.Balance, Assert.Single(states[0].Balances).Balance);
+		Assert.Null(states[1].HeadBlock);
+		Assert.Empty(states[1].Balances);
+
+		await AssertRepresentativeReads(client, node, cancellationToken);
+		await AssertNodeDiagnostics(client, cancellationToken);
+
 		harness.Shutdown();
+	}
+
+	/// <summary>
+	/// The three representative reads agree on the chain's one representative:
+	/// the node's own, the singular lookup, and the advertised set.
+	/// </summary>
+	private static async Task AssertRepresentativeReads(NodeClient client, LedgerNode node, CancellationToken cancellationToken)
+	{
+		NodeRepresentative own = await client.GetNodeRepresentative(cancellationToken);
+		Assert.Equal(node.Representative, own.Account.Address);
+		Assert.True(own.Weight > BigInteger.Zero);
+
+		NodeRepresentative named = await client.GetRepresentative(own.Account, cancellationToken);
+		Assert.Equal(node.Representative, named.Account.Address);
+		Assert.Equal(own.Weight, named.Weight);
+
+		// Only the plural read advertises the REST endpoint.
+		IReadOnlyList<NodeRepresentative> all = await client.GetAllRepresentatives(cancellationToken);
+		NodeRepresentative advertised = Assert.Single(all, entry => entry.Account.Address == node.Representative);
+		Assert.NotNull(advertised.ApiUrl);
+		Assert.NotEmpty(advertised.ApiUrl!);
+	}
+
+	/// <summary>The diagnostic reads: checksum with a moment, stats and peers as JSON objects.</summary>
+	private static async Task AssertNodeDiagnostics(NodeClient client, CancellationToken cancellationToken)
+	{
+		LedgerChecksum checksum = await client.GetLedgerChecksum(cancellationToken);
+		Assert.NotEqual(BigInteger.Zero, checksum.Checksum);
+		Assert.NotNull(checksum.Moment);
+
+		JsonElement stats = await client.GetNodeStats(cancellationToken);
+		Assert.Equal(JsonValueKind.Object, stats.ValueKind);
+
+		JsonElement peers = await client.GetNodePeers(cancellationToken);
+		Assert.Equal(JsonValueKind.Object, peers.ValueKind);
 	}
 }

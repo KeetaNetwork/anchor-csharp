@@ -1,9 +1,11 @@
 using System.Globalization;
 using System.Numerics;
+using System.Text.Json;
 
 using KeetaNet.Anchor.Generated.Node;
 
 using GeneratedCertificate = KeetaNet.Anchor.Generated.Node.Certificate;
+using GeneratedRepresentative = KeetaNet.Anchor.Generated.Node.Representative;
 
 namespace KeetaNet.Anchor;
 
@@ -54,35 +56,91 @@ public sealed class NodeClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		Response5 state = await Attempt(() => _api.GetAccountStateAsync(account.Address, cancellationToken)).ConfigureAwait(false);
+		return DecodeState(state.CurrentHeadBlock, state.CurrentHeadBlockHeight, state.Representative, state.Info, state.Balances);
+	}
 
-		NodeAccountInfo? info = null;
-		if (state.Info is not null)
+	/// <summary>
+	/// The ledger state of several <paramref name="accounts"/> in one call,
+	/// one entry per account in request order.
+	/// </summary>
+	public async Task<IReadOnlyList<AccountState>> GetAccountStates(
+		IReadOnlyList<Crypto.Account> accounts,
+		CancellationToken cancellationToken = default)
+	{
+		string joined = string.Join(",", accounts.Select(account => account.Address));
+		ICollection<Anonymous> states = await Attempt(() => _api.GetAccountStatesAsync(joined, cancellationToken)).ConfigureAwait(false);
+
+		return states
+			.Select(item => DecodeState(item.CurrentHeadBlock, item.CurrentHeadBlockHeight, item.Representative, item.Info, item.Balances))
+			.ToArray();
+	}
+
+	/// <summary>
+	/// The total supply of <paramref name="token"/>, read from its account
+	/// state. Null for an account that is not a token.
+	/// </summary>
+	public async Task<BigInteger?> GetTokenSupply(
+		Crypto.Account token,
+		CancellationToken cancellationToken = default)
+	{
+		AccountState state = await GetAccountState(token, cancellationToken).ConfigureAwait(false);
+		return state.Info?.Supply;
+	}
+
+	/// <summary>The point-in-time XOR checksum of the node's ledger.</summary>
+	public async Task<LedgerChecksum> GetLedgerChecksum(CancellationToken cancellationToken = default)
+	{
+		Response12 checksum = await Attempt(() => _api.GetLedgerChecksumAsync(cancellationToken)).ConfigureAwait(false);
+
+		DateTimeOffset? moment = null;
+		if (!string.IsNullOrEmpty(checksum.Moment))
 		{
-			info = new NodeAccountInfo(
-				state.Info.Name,
-				state.Info.Description,
-				state.Info.Metadata,
-				OptionalHexAmount(state.Info.Supply));
+			moment = DateTimeOffset.Parse(checksum.Moment, CultureInfo.InvariantCulture);
 		}
 
-		Crypto.Account? representative = null;
-		if (state.Representative is not null)
-		{
-			representative = _runtime.Accounts.FromAccount(state.Representative);
-		}
+		return new LedgerChecksum(
+			OptionalHexAmount(checksum.Checksum) ?? BigInteger.Zero,
+			moment,
+			checksum.MomentRange);
+	}
 
-		Crypto.BlockHash? headBlock = null;
-		if (state.CurrentHeadBlock is not null)
-		{
-			headBlock = Crypto.BlockHash.Parse(state.CurrentHeadBlock);
-		}
+	/// <summary>The node's own representative.</summary>
+	public async Task<NodeRepresentative> GetNodeRepresentative(CancellationToken cancellationToken = default)
+	{
+		GeneratedRepresentative representative = await Attempt(() => _api.GetNodeRepresentativeAsync(cancellationToken)).ConfigureAwait(false);
+		return DecodeRepresentative(representative);
+	}
 
-		return new AccountState(
-			headBlock,
-			OptionalHexAmount(state.CurrentHeadBlockHeight),
-			representative,
-			info,
-			DecodeBalances(state.Balances));
+	/// <summary>The named <paramref name="representative"/> and its voting weight.</summary>
+	public async Task<NodeRepresentative> GetRepresentative(
+		Crypto.Account representative,
+		CancellationToken cancellationToken = default)
+	{
+		GeneratedRepresentative named = await Attempt(() => _api.GetRepresentativeAsync(representative.Address, cancellationToken)).ConfigureAwait(false);
+		return DecodeRepresentative(named);
+	}
+
+	/// <summary>Every representative the node knows, with advertised endpoints.</summary>
+	public async Task<IReadOnlyList<NodeRepresentative>> GetAllRepresentatives(CancellationToken cancellationToken = default)
+	{
+		Response13 response = await Attempt(() => _api.GetAllRepresentativesAsync(cancellationToken)).ConfigureAwait(false);
+		ICollection<GeneratedRepresentative> representatives = response.Representatives ?? Array.Empty<GeneratedRepresentative>();
+
+		return representatives.Select(DecodeRepresentative).ToArray();
+	}
+
+	/// <summary>Node statistics, as the opaque JSON the reference reports.</summary>
+	public async Task<JsonElement> GetNodeStats(CancellationToken cancellationToken = default)
+	{
+		object stats = await Attempt(() => _api.GetNodeStatsAsync(cancellationToken)).ConfigureAwait(false);
+		return (JsonElement)stats;
+	}
+
+	/// <summary>Connected peers, as the opaque JSON the reference reports.</summary>
+	public async Task<JsonElement> GetNodePeers(CancellationToken cancellationToken = default)
+	{
+		object peers = await Attempt(() => _api.GetPeersAsync(cancellationToken)).ConfigureAwait(false);
+		return (JsonElement)peers;
 	}
 
 	/// <summary>Every token balance <paramref name="account"/> holds.</summary>
@@ -245,6 +303,52 @@ public sealed class NodeClient : IDisposable
 	/// <summary>Map a generated certificate record to the SDK's shared record.</summary>
 	private static Certificate DecodeCertificate(GeneratedCertificate record) =>
 		new(record.Certificate1, record.Intermediates?.ToArray() ?? Array.Empty<string>());
+
+	/// <summary>
+	/// Map one account's generated state fields to the typed
+	/// <see cref="AccountState"/>, shared by the single and batch reads.
+	/// </summary>
+	private AccountState DecodeState(
+		string? headBlock,
+		string? headHeight,
+		string? representative,
+		AccountInfo? generatedInfo,
+		ICollection<BalanceEntry>? balances)
+	{
+		NodeAccountInfo? info = null;
+		if (generatedInfo is not null)
+		{
+			info = new NodeAccountInfo(
+				generatedInfo.Name,
+				generatedInfo.Description,
+				generatedInfo.Metadata,
+				OptionalHexAmount(generatedInfo.Supply));
+		}
+
+		Crypto.Account? delegated = null;
+		if (representative is not null)
+		{
+			delegated = _runtime.Accounts.FromAccount(representative);
+		}
+
+		Crypto.BlockHash? head = null;
+		if (headBlock is not null)
+		{
+			head = Crypto.BlockHash.Parse(headBlock);
+		}
+
+		return new AccountState(head, OptionalHexAmount(headHeight), delegated, info, DecodeBalances(balances));
+	}
+
+	/// <summary>
+	/// Map a generated representative to the typed model. The plural endpoint
+	/// advertises endpoints; the singular lookup does not.
+	/// </summary>
+	private NodeRepresentative DecodeRepresentative(GeneratedRepresentative representative) =>
+		new(
+			_runtime.Accounts.FromAccount(representative.Representative1),
+			OptionalHexAmount(representative.Weight) ?? BigInteger.Zero,
+			representative.Endpoints?.Api);
 
 	/// <summary>Map generated balance entries, treating absent amounts as zero.</summary>
 	private TokenBalance[] DecodeBalances(ICollection<BalanceEntry>? balances)
