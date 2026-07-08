@@ -14,6 +14,9 @@ public sealed class AssetFlowTests
 	private const string BankLocation = "bank-account:us";
 	private const string EvmLocation = "chain:evm:100";
 	private const string KeetaLocation = "chain:keeta:100";
+	private const string EvmAsset = "evm:0xc0634090F2Fe6c6d75e61Be2b949464aBB498973";
+
+	private static readonly string[] BlockedAttributes = { "fullName", "dateOfBirth" };
 
 	[Fact]
 	public async Task DiscoveryReadsThePublishedProvider()
@@ -74,6 +77,68 @@ public sealed class AssetFlowTests
 		var instruction = new AssetPullInstruction("ACH_DEBIT", pullInstruction.GetProperty("pullFrom"));
 		AssetTransferStatus executed = await pull.ExecuteTransfer(instruction, cancellationToken);
 		Assert.Equal("EXECUTED", executed.Transaction.GetProperty("status").GetString());
+
+		session.Shutdown();
+	}
+
+	[Fact]
+	public async Task AccountStatusServesTypedBlockersForABlockedCaller()
+	{
+		using var session = AssetSession.Open(blockCaller: true);
+		(AssetMovementClient client, AssetAnchor anchor, CancellationToken cancellationToken) = session;
+		AssetProvider provider = await session.DiscoveredProviderAsync();
+
+		AssetAccountStatus status = await client.GetAccountStatus(provider, cancellationToken);
+		Assert.True(status.ActionRequired);
+		Assert.Equal(2, status.Blockers!.Count);
+
+		var share = Assert.IsType<AssetKycShareNeededBlocker>(status.Blockers[0]);
+		Assert.Equal(JsonValueKind.Null, share.TosFlow.ValueKind);
+		Assert.Equal(BlockedAttributes, share.NeededAttributes);
+		Assert.Equal(new[] { anchor.SendToAddress }, share.ShareWithPrincipals);
+
+		using JsonElement.ArrayEnumerator issuerSets = share.AcceptedIssuers.EnumerateArray();
+		JsonElement issuerSet = Assert.Single(issuerSets);
+		using JsonElement.ArrayEnumerator issuers = issuerSet.EnumerateArray();
+		JsonElement issuer = Assert.Single(issuers);
+		Assert.Equal("CN", issuer.GetProperty("name").GetString());
+		Assert.Equal("Anchor Test CA", issuer.GetProperty("value").GetString());
+
+		var unsupported = Assert.IsType<AssetOperationNotSupportedBlocker>(status.Blockers[1]);
+		Assert.Equal(anchor.Asset, unsupported.ForAsset.GetString());
+		Assert.Equal("ACH_DEBIT", unsupported.ForRail);
+
+		session.Shutdown();
+	}
+
+	[Fact]
+	public async Task PublishedLegalAndTokenMetadataRoundTrip()
+	{
+		using var session = AssetSession.Open();
+		(AssetMovementClient client, AssetAnchor anchor, CancellationToken cancellationToken) = session;
+		AssetProvider provider = await session.DiscoveredProviderAsync();
+
+		IReadOnlyList<AssetDisclaimer>? disclaimers = client.GetLegalDisclaimers(provider);
+		Assert.NotNull(disclaimers);
+		AssetDisclaimer disclaimer = Assert.Single(disclaimers!);
+		Assert.Equal(AssetDisclaimerPurpose.General, disclaimer.Purpose);
+		Assert.Equal(AssetContentType.Markdown, disclaimer.Content.Type);
+		Assert.Equal("Test disclaimer: use at your own risk.", disclaimer.Content.Content);
+
+		// Looking the provider up by id serves the same disclaimers.
+		IReadOnlyList<AssetDisclaimer>? byId = await client.GetProviderLegalDisclaimersById(anchor.ProviderId, cancellationToken);
+		Assert.Equal(disclaimers, byId);
+
+		AssetTokenMetadata? metadata = client.GetAssetMetadataForLocation(provider, EvmLocation, EvmAsset);
+		Assert.NotNull(metadata);
+		Assert.Equal(18u, metadata!.DecimalPlaces);
+		Assert.Equal("Test Token", metadata.DisplayName);
+		Assert.Equal("$TEST", metadata.Ticker);
+		Assert.Equal("https://token.test/logo.png", metadata.LogoUri);
+
+		// An asset the anchor publishes no display metadata for reports absent,
+		// not an error.
+		Assert.Null(client.GetAssetMetadataForLocation(provider, EvmLocation, "evm:0xdeadbeef"));
 
 		session.Shutdown();
 	}

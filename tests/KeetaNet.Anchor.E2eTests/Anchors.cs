@@ -52,6 +52,92 @@ internal sealed record PublishedChain(string Account, string Leaf, string LeafHa
 }
 
 /// <summary>
+/// A live reference node started by the node harness, with helpers that mutate
+/// its ledger (funding, account info, delegation) so the node client can read
+/// every surface back over the real API.
+/// </summary>
+internal sealed class LedgerNode
+{
+	private readonly NodeHarness _harness;
+
+	public string Api { get; }
+	public string BaseToken { get; }
+	public string Representative { get; }
+
+	private LedgerNode(NodeHarness harness, string api, string baseToken, string representative)
+	{
+		_harness = harness;
+		Api = api;
+		BaseToken = baseToken;
+		Representative = representative;
+	}
+
+	/// <summary>Boot the reference node with an initialized chain.</summary>
+	public static LedgerNode Start(NodeHarness harness)
+	{
+		JsonElement started = harness.Request("startNode");
+
+		return new LedgerNode(
+			harness,
+			started.GetProperty("api").GetString()!,
+			started.GetProperty("baseToken").GetString()!,
+			started.GetProperty("representative").GetString()!);
+	}
+
+	/// <summary>Fund the seed-derived account, returning its address.</summary>
+	public string Fund(string seed, long amount)
+	{
+		var arguments = new JsonObject
+		{
+			["seed"] = seed,
+			["algorithm"] = "secp256k1",
+			["amount"] = amount.ToString(System.Globalization.CultureInfo.InvariantCulture),
+		};
+
+		return _harness.Request("fund", arguments).GetProperty("account").GetString()!;
+	}
+
+	/// <summary>Publish on-chain info for the seed-derived account.</summary>
+	public void SetInfo(string seed, string name, string description, string metadata)
+	{
+		var arguments = new JsonObject
+		{
+			["seed"] = seed,
+			["algorithm"] = "secp256k1",
+			["name"] = name,
+			["description"] = description,
+			["metadata"] = metadata,
+		};
+
+		_harness.Request("setInfo", arguments);
+	}
+
+	/// <summary>
+	/// Delegate the seed-derived account's weight to the account derived from
+	/// <paramref name="representativeSeed"/>, returning the representative address.
+	/// </summary>
+	public string SetRep(string seed, string representativeSeed)
+	{
+		var arguments = new JsonObject
+		{
+			["seed"] = seed,
+			["algorithm"] = "secp256k1",
+			["representativeSeed"] = representativeSeed,
+			["representativeAlgorithm"] = "secp256k1",
+		};
+
+		return _harness.Request("setRep", arguments).GetProperty("representative").GetString()!;
+	}
+
+	/// <summary>The account's head block hash as the reference client reports it, or null.</summary>
+	public string? Head(string account)
+	{
+		var arguments = new JsonObject { ["account"] = account };
+		return _harness.Request("head", arguments).GetProperty("head").GetString();
+	}
+}
+
+/// <summary>
 /// A live asset-movement anchor HTTP server started by the harness, alongside
 /// the fixture values its callbacks report back.
 /// </summary>
@@ -63,10 +149,19 @@ internal sealed record AssetAnchor(
 	string Asset,
 	string SendToAddress)
 {
-	/// <summary>Start a signed asset-movement anchor.</summary>
-	public static AssetAnchor Start(NodeHarness harness)
+	/// <summary>
+	/// Start a signed asset-movement anchor. When <paramref name="blockedAccount"/>
+	/// is given, the anchor reports that account as blocked from
+	/// <c>getAccountStatus</c> with one blocker of every recoverable kind.
+	/// </summary>
+	public static AssetAnchor Start(NodeHarness harness, string? blockedAccount = null)
 	{
 		var arguments = new JsonObject { ["sign"] = true };
+		if (blockedAccount is not null)
+		{
+			arguments["blockedAccount"] = blockedAccount;
+		}
+
 		JsonElement started = harness.Request("startAssetAnchor", arguments);
 
 		return new AssetAnchor(

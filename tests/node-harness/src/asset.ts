@@ -9,10 +9,11 @@
 
 import type * as ResolverModule from '@keetanetwork/anchor/lib/resolver.js';
 import type * as AssetServerModule from '@keetanetwork/anchor/services/asset-movement/server.js';
+import type * as AssetCommonModule from '@keetanetwork/anchor/services/asset-movement/common.js';
 import type { KeetaAssetMovementTransaction } from '@keetanetwork/anchor/services/asset-movement/common.js';
 import type * as KeetaNetModule from '@keetanetwork/keetanet-client';
 
-import type { ChainNode, GenericAccount, UserClient } from './chain.js';
+import type { ChainNode, UserClient } from './chain.js';
 import type { HarnessResponse } from './core.js';
 import { bootChainNode } from './chain.js';
 import { referenceResolver, runHarness } from './core.js';
@@ -20,6 +21,7 @@ import { referenceResolver, runHarness } from './core.js';
 const refs = referenceResolver();
 const resolver = await refs.anchor<typeof ResolverModule>('lib/resolver.js');
 const assetServer = await refs.anchor<typeof AssetServerModule>('services/asset-movement/server.js');
+const assetCommon = await refs.anchor<typeof AssetCommonModule>('services/asset-movement/common.js');
 const KeetaNet = refs.client<typeof KeetaNetModule>();
 
 const KeetaNetLib = KeetaNet.lib;
@@ -27,6 +29,11 @@ const Account = KeetaNetLib.Account;
 const Metadata = resolver.default.Metadata;
 
 const metadataSigner = Account.fromSeed(Account.generateRandomSeed(), 0);
+
+/**
+ * A seed-derived key account, as the blocker constructors require.
+ */
+type SigningAccount = ReturnType<typeof KeetaNetLib.Account.fromSeed>;
 
 type TokenAccount = UserClient['baseToken'];
 type AssetServerInstance = InstanceType<typeof assetServer.KeetaNetAssetMovementAnchorHTTPServer>;
@@ -47,6 +54,7 @@ interface StartAssetAnchorRequest {
 	cmd: 'startAssetAnchor';
 	sign?: boolean;
 	providerId?: string;
+	blockedAccount?: string;
 }
 
 interface StopAssetAnchorRequest {
@@ -68,7 +76,7 @@ type AssetRequest =
  * except `simulateTransfer` (which the server publishes unauthenticated), so the
  * signed/unsigned split matches the C# client.
  */
-function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: GenericAccount, moment: string): AssetMovementConfig {
+function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: SigningAccount, moment: string, blockedAccount: string | undefined): AssetMovementConfig {
 	const baseToken = baseTokenAccount.publicKeyString.get();
 	const sendToAddress = sendToAccount.publicKeyString.get();
 
@@ -150,6 +158,28 @@ function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: GenericAc
 	return({
 		authenticationRequired: true,
 
+		legal: {
+			disclaimers: [
+				{
+					purpose: 'general',
+					content: { type: 'markdown', content: 'Test disclaimer: use at your own risk.' }
+				}
+			]
+		},
+
+		locationMetadata: {
+			'chain:evm:100': {
+				assets: {
+					'evm:0xc0634090F2Fe6c6d75e61Be2b949464aBB498973': {
+						decimalPlaces: 18,
+						displayName: 'Test Token',
+						ticker: '$TEST',
+						logoURI: 'https://token.test/logo.png'
+					}
+				}
+			}
+		},
+
 		supportedAssets: [
 			{
 				asset: baseToken,
@@ -206,8 +236,29 @@ function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: GenericAc
 			});
 		},
 
-		getAccountStatus: async function() {
-			return({ actionRequired: false });
+		/*
+		 * The magic blocked account reports action required with one blocker of
+		 * every recoverable kind, so a binding decodes each typed shape.
+		 */
+		getAccountStatus: async function(account) {
+			if (blockedAccount === undefined || account.publicKeyString.get() !== blockedAccount) {
+				return({ actionRequired: false });
+			}
+
+			return({
+				actionRequired: true,
+				errors: [
+					new assetCommon.Errors.KYCShareNeeded({
+						neededAttributes: ['fullName', 'dateOfBirth'],
+						shareWithPrincipals: [sendToAccount],
+						acceptedIssuers: [[{ name: 'CN', value: 'Anchor Test CA' }]]
+					}),
+					new assetCommon.Errors.OperationNotSupported({
+						forAsset: baseToken,
+						forRail: 'ACH_DEBIT'
+					})
+				]
+			});
 		},
 
 		initiatePersistentForwardingTemplate: async function() {
@@ -378,7 +429,7 @@ async function handleStartAssetAnchor(request: StartAssetAnchorRequest): Promise
 		}
 	})({
 		metadataSigner: sign ? metadataSigner : undefined,
-		assetMovement: assetCallbacks(baseTokenAccount, sendToAccount, moment)
+		assetMovement: assetCallbacks(baseTokenAccount, sendToAccount, moment, request.blockedAccount)
 	});
 
 	await server.start();
