@@ -57,6 +57,8 @@ words:
   - idisp
   - lifecycles
   - tlsv
+  - csclient
+  - nswag
   - rasn
   - rustfmt
   - userprofile
@@ -66,3 +68,5 @@ words:
   - msys
   - maxdepth
   - powershell
+  - renderable
+  - solana

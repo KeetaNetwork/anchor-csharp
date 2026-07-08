@@ -8,7 +8,7 @@ using CryptoCertificate = KeetaNet.Anchor.Crypto.Certificate;
 namespace KeetaNet.Anchor.Tests;
 
 /// <summary>
-/// The offline <c>crypto</c> account surface: derivation, signing, and
+/// The <c>crypto</c> account surface: derivation, signing, and
 /// encryption round-trips through the embedded core module.
 /// </summary>
 public sealed class CryptoTests
@@ -170,6 +170,21 @@ public sealed class CryptoTests
 		Assert.Equal(parsed.Serial, fromDer.Serial);
 		Assert.Equal(parsed.Subject, fromDer.Subject);
 		Assert.Equal(parsed.ToPem(), fromDer.ToPem());
+	}
+
+	[Fact]
+	public void FixtureCertificateHashIsAStableLedgerKey()
+	{
+		using var runtime = WasmRuntime.Load();
+		using CryptoCertificate parsed = runtime.Certificates.Parse(KycFixture.Pem);
+
+		CertificateHash hash = parsed.Hash;
+		Assert.Equal(CertificateHash.Length, hash.ToBytes().Length);
+		Assert.Equal(hash, parsed.Hash);
+		Assert.Equal(hash, CertificateHash.Parse(hash.ToString().ToUpperInvariant()));
+
+		using CryptoCertificate fromDer = runtime.Certificates.ParseDer(parsed.ToDer());
+		Assert.Equal(hash, fromDer.Hash);
 	}
 
 	[Fact]

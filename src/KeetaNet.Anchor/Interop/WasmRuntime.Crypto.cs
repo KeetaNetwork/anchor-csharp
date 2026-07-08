@@ -4,7 +4,7 @@ using System.Text;
 namespace KeetaNet.Anchor;
 
 /// <summary>
-/// The offline <c>crypto</c> surface of the P1 core module: handle-based account,
+/// The <c>crypto</c> surface of the P1 core module: handle-based account,
 /// base certificate, and KYC certificate objects. Every internal entry point
 /// dispatches onto the runtime's owner thread.
 /// </summary>
@@ -111,6 +111,16 @@ public sealed partial class WasmRuntime
 
 	internal string CertificateSubjectPublicKey(int handle) =>
 		TextOf("keeta_certificate_subject_public_key", handle);
+
+	internal string CertificateHash(string hexDer) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument der = arguments.Write(hexDer);
+
+			int result = Invoke<int, int, int>("keeta_certificate_hash", der.Pointer, der.Length);
+			return Text(result);
+		});
 
 	internal void CertificateFree(int handle) => RunFree("keeta_certificate_free", handle);
 

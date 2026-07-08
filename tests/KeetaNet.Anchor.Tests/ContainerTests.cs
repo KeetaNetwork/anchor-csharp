@@ -5,7 +5,7 @@ using Xunit;
 namespace KeetaNet.Anchor.Tests;
 
 /// <summary>
-/// The offline encrypted-container surface: plaintext and encrypted encoding
+/// The encrypted-container surface: plaintext and encrypted encoding
 /// round-trips, detached signatures, and the grant/revoke principal cycle.
 /// </summary>
 public sealed class ContainerTests

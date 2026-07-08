@@ -20,6 +20,7 @@ coverage*.info
 # Wasm core built from the pinned crates.io release (never committed)
 wasm/
 .wasm-build/
+.node-api-build/
 
 # Node harness build output
 node_modules/

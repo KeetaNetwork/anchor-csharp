@@ -341,6 +341,7 @@ async function handlePublishCertificateChain(): Promise<HarnessResponse> {
 		api: current.chain.api,
 		account: holder.publicKeyString.get(),
 		leaf: leaf.toPEM(),
+		leafHash: leaf.hash().toString(),
 		bare: bare.toPEM(),
 		ca: current.ca.toPEM()
 	});

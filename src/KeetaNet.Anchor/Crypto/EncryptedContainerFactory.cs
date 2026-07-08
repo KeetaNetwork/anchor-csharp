@@ -12,8 +12,8 @@ public sealed class EncryptedContainerFactory
 
 	/// <summary>
 	/// Build a plaintext container. A non-empty <paramref name="principals"/> set
-	/// seals it to those accounts; <paramref name="signer"/> attaches a detached
-	/// signature; <paramref name="locked"/> overrides the default plaintext policy.
+	/// seals it to those accounts. <paramref name="signer"/> attaches a detached
+	/// signature. <paramref name="locked"/> overrides the default plaintext policy.
 	/// </summary>
 	public EncryptedContainer FromPlaintext(
 		byte[] data,

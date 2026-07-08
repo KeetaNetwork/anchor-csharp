@@ -6,9 +6,9 @@ namespace KeetaNet.Anchor.E2eTests;
 /// <summary>
 /// A live KYC anchor HTTP server started by the harness, with its service
 /// metadata published on-chain to <see cref="Root"/> and readable through the
-/// node API at <see cref="Api"/>.
+/// reference node's API at <see cref="NodeApi"/>.
 /// </summary>
-internal sealed record KycAnchor(string Api, string Root, string Ca, string ProviderId)
+internal sealed record KycAnchor(string NodeApi, string Root, string Ca, string ProviderId)
 {
 	/// <summary>Start a signed KYC anchor advertising the US country code.</summary>
 	public static KycAnchor Start(NodeHarness harness)
@@ -30,11 +30,12 @@ internal sealed record KycAnchor(string Api, string Root, string Ca, string Prov
 
 /// <summary>
 /// A certificate chain the harness published on-chain for a fresh holder
-/// <see cref="Account"/>: <see cref="Leaf"/> recorded with <see cref="Ca"/> as
-/// its intermediate bundle, and <see cref="Bare"/> recorded without
-/// intermediates, so a ledger read serves both shapes.
+/// <see cref="Account"/>: <see cref="Leaf"/> (addressable by <see cref="LeafHash"/>)
+/// recorded with <see cref="Ca"/> as its intermediate bundle, and
+/// <see cref="Bare"/> recorded without intermediates, so a ledger read serves
+/// both shapes.
 /// </summary>
-internal sealed record PublishedChain(string Account, string Leaf, string Bare, string Ca)
+internal sealed record PublishedChain(string Account, string Leaf, string LeafHash, string Bare, string Ca)
 {
 	/// <summary>Publish the two-record chain on the running anchor's node.</summary>
 	public static PublishedChain Publish(NodeHarness harness)
@@ -44,6 +45,7 @@ internal sealed record PublishedChain(string Account, string Leaf, string Bare, 
 		return new PublishedChain(
 			published.GetProperty("account").GetString()!,
 			published.GetProperty("leaf").GetString()!,
+			published.GetProperty("leafHash").GetString()!,
 			published.GetProperty("bare").GetString()!,
 			published.GetProperty("ca").GetString()!);
 	}
@@ -54,7 +56,7 @@ internal sealed record PublishedChain(string Account, string Leaf, string Bare, 
 /// the fixture values its callbacks report back.
 /// </summary>
 internal sealed record AssetAnchor(
-	string Api,
+	string NodeApi,
 	string Root,
 	string ProviderId,
 	string Signer,

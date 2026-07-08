@@ -14,7 +14,7 @@ namespace KeetaNet.Anchor;
 /// <remarks>
 /// A runtime is thread-safe by construction: the thread-affine
 /// <c>Wasmtime.Store</c> lives on a dedicated dispatcher thread and every
-/// <c>keeta_*</c> call is serialized onto it. Offline operations dispatch
+/// <c>keeta_*</c> call is serialized onto it. Local operations dispatch
 /// synchronously while networked client operations are <c>async</c> and honor a
 /// <see cref="CancellationToken"/> before dispatch and during host HTTP and
 /// sleeps (the guest owns control flow between those points).
@@ -47,7 +47,7 @@ public sealed partial class WasmRuntime : IDisposable
 	private byte[] _pending = Array.Empty<byte>();
 	private CancellationToken _activeCancellation = CancellationToken.None;
 
-	// Debug-only leak accounting; see CountHandleAdopted/CountHandleReleased.
+	// Debug-only leak accounting. See CountHandleAdopted/CountHandleReleased.
 	private int _outstandingHandles;
 
 	private bool _disposed;
@@ -169,10 +169,10 @@ public sealed partial class WasmRuntime : IDisposable
 		return payload.ToArray();
 	}
 
-	/// <summary>Run one offline operation on the dispatcher thread, blocking for its result.</summary>
+	/// <summary>Run one local operation on the dispatcher thread, blocking for its result.</summary>
 	private TResult Run<TResult>(Func<TResult> work) => _dispatcher.Run(work);
 
-	/// <summary>Run one offline operation on the dispatcher thread without a result.</summary>
+	/// <summary>Run one local operation on the dispatcher thread without a result.</summary>
 	private void Run(Action work) => _dispatcher.Run(work);
 
 	/// <summary>
@@ -231,9 +231,6 @@ public sealed partial class WasmRuntime : IDisposable
 
 	internal Task<byte[]> KycGetVerificationStatus(int handle, string providerJson, string id, CancellationToken cancellationToken) =>
 		RunAsync(() => WithProviderAndArg("keeta_kyc_get_verification_status", handle, providerJson, id), cancellationToken);
-
-	internal Task<byte[]> KycGetAllCertificates(int handle, string account, CancellationToken cancellationToken) =>
-		RunAsync(() => WithHandleAndText("keeta_kyc_get_all_certificates", handle, account), cancellationToken);
 
 	internal void KycFree(int handle) => RunFree("keeta_kyc_free", handle);
 
@@ -377,7 +374,7 @@ public sealed partial class WasmRuntime : IDisposable
 	/// <summary>
 	/// Drive an export taking an object handle and one binary argument, yielding
 	/// a bytes payload. Unlike <see cref="WithHandleAndText"/>, every caller is a
-	/// synchronous offline operation, so this dispatches itself.
+	/// synchronous local operation, so this dispatches itself.
 	/// </summary>
 	private byte[] WithHandleAndBytes(string export, int handle, byte[] value) =>
 		Run(() =>
@@ -623,7 +620,7 @@ public sealed partial class WasmRuntime : IDisposable
 		}
 	}
 
-	/// <summary>Reject a call made after disposal; assert dispatcher-thread confinement.</summary>
+	/// <summary>Reject a call made after disposal. Assert dispatcher-thread confinement.</summary>
 	private void EnsureUsable()
 	{
 		ObjectDisposedException.ThrowIf(_disposed, this);

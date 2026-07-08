@@ -2,7 +2,7 @@ namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
 /// Creates <see cref="Account"/> objects owned by one runtime. Reached through
-/// <see cref="WasmRuntime.Accounts"/>; every account it creates must be
+/// <see cref="WasmRuntime.Accounts"/>. Every account it creates must be
 /// disposed before that runtime.
 /// </summary>
 public sealed class AccountFactory

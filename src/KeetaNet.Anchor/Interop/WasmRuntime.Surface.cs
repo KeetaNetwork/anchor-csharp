@@ -39,4 +39,13 @@ public sealed partial class WasmRuntime
 	/// </summary>
 	public AssetMovementClient CreateAssetMovementClient(string nodeUrl, string root, Account account) =>
 		AssetMovementClient.WithAccount(this, nodeUrl, root, account);
+
+	/// <summary>
+	/// Create a lite, read-only client for the node API at
+	/// <paramref name="nodeUrl"/>. An injected <paramref name="httpClient"/>
+	/// (for example from <c>IHttpClientFactory</c>) is borrowed, not disposed.
+	/// Absent one the client owns its own.
+	/// </summary>
+	public NodeClient CreateNodeClient(string nodeUrl, HttpClient? httpClient = null) =>
+		new(this, nodeUrl, httpClient);
 }

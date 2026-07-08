@@ -71,7 +71,7 @@ public sealed class IssueTests
 
 		KycAttributeValue email = leaf.GetAttribute("email", subject);
 
-		// An email is neither a timestamp nor JSON; each typed accessor must
+		// An email is neither a timestamp nor JSON. Each typed accessor must
 		// refuse with the stable decode code instead of returning garbage.
 		KeetaException notATimestamp = Assert.Throws<KeetaException>(() => email.AsTimestamp());
 		Assert.Equal("ATTRIBUTE_DECODE", notATimestamp.Code);

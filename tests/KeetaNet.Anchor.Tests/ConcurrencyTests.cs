@@ -74,7 +74,7 @@ public sealed class ConcurrencyTests
 		await cancellation.CancelAsync();
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(
-			() => client.GetProvidersAsync(Countries, cancellation.Token));
+			() => client.GetProviders(Countries, cancellation.Token));
 	}
 
 	[Fact]
@@ -93,6 +93,6 @@ public sealed class ConcurrencyTests
 		using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
 
 		await Assert.ThrowsAnyAsync<OperationCanceledException>(
-			() => client.GetProvidersAsync(Countries, cancellation.Token));
+			() => client.GetProviders(Countries, cancellation.Token));
 	}
 }

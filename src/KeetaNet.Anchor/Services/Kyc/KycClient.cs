@@ -29,7 +29,7 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>Every provider that serves all <paramref name="countries"/> (ISO codes).</summary>
-	public async Task<IReadOnlyList<KycProvider>> GetProvidersAsync(
+	public async Task<IReadOnlyList<KycProvider>> GetProviders(
 		IEnumerable<string> countries,
 		CancellationToken cancellationToken = default)
 	{
@@ -40,11 +40,21 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>
+	/// The countries any provider can validate, folded across every root
+	/// (the reference <c>getSupportedCountries</c>).
+	/// </summary>
+	public async Task<SupportedCountries> GetSupportedCountries(CancellationToken cancellationToken = default)
+	{
+		IReadOnlyList<KycProvider> providers = await GetProviders(Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
+		return SupportedCountries.FromProviders(providers);
+	}
+
+	/// <summary>
 	/// Start a verification with <paramref name="provider"/> for
 	/// <paramref name="countries"/>, optionally redirecting the user to
 	/// <paramref name="redirect"/> when the flow ends.
 	/// </summary>
-	public async Task<VerificationOutcome> StartVerificationAsync(
+	public async Task<VerificationOutcome> StartVerification(
 		KycProvider provider,
 		IEnumerable<string> countries,
 		string? redirect = null,
@@ -61,7 +71,7 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>Fetch the certificates issued for verification <paramref name="id"/>.</summary>
-	public async Task<CertificatesOutcome> GetCertificatesAsync(
+	public async Task<CertificatesOutcome> GetCertificates(
 		KycProvider provider,
 		string id,
 		CancellationToken cancellationToken = default)
@@ -74,36 +84,13 @@ public sealed class KycClient : WasmObject
 		return ParseOutcome<Certificates, CertificatesOutcome>(payload, "certificates", ready => new CertificatesOutcome(ready, null), retry => new CertificatesOutcome(null, retry));
 	}
 
-	/// <summary>
-	/// Every certificate <paramref name="account"/> (a <c>keeta_</c> public key
-	/// string) has published on-chain, each with the intermediates recorded
-	/// alongside it. An account with no published certificates yields an empty list.
-	/// </summary>
-	public async Task<IReadOnlyList<Certificate>> GetAllCertificatesAsync(
-		string account,
-		CancellationToken cancellationToken = default)
-	{
-		byte[] payload = await Runtime.KycGetAllCertificates(Handle, account, cancellationToken).ConfigureAwait(false);
-		return KeetaJson.ReadList<Certificate>(payload);
-	}
-
-	/// <summary>
-	/// Every certificate <paramref name="account"/> has published on-chain, each
-	/// with the intermediates recorded alongside it. An account with no published
-	/// certificates yields an empty list.
-	/// </summary>
-	public Task<IReadOnlyList<Certificate>> GetAllCertificatesAsync(
-		Crypto.Account account,
-		CancellationToken cancellationToken = default) =>
-		GetAllCertificatesAsync(account.Address, cancellationToken);
-
 	/// <summary>Parse <paramref name="provider"/>'s advertised issuer CA certificate.</summary>
 	/// <remarks>Use it as a trusted root when verifying an issued <see cref="Crypto.KycCertificate"/>.</remarks>
 	public Crypto.Certificate GetCA(KycProvider provider) =>
 		Runtime.Certificates.Parse(provider.Ca);
 
 	/// <summary>Read the status of verification <paramref name="id"/>.</summary>
-	public async Task<StatusOutcome> GetVerificationStatusAsync(
+	public async Task<StatusOutcome> GetVerificationStatus(
 		KycProvider provider,
 		string id,
 		CancellationToken cancellationToken = default)
