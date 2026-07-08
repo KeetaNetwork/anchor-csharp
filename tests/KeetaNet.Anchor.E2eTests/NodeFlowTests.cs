@@ -113,6 +113,14 @@ public sealed class NodeFlowTests
 		await AssertRepresentativeReads(client, node, cancellationToken);
 		await AssertNodeDiagnostics(client, cancellationToken);
 
+		// A response from outside the node API surfaces as the stable typed
+		// failure, with the transport error preserved as its cause.
+		using NodeClient misRouted = runtime.CreateNodeClient(node.Api + "/bogus");
+		KeetaException failure = await Assert.ThrowsAsync<KeetaException>(
+			() => misRouted.GetNodeVersion(cancellationToken));
+		Assert.Equal("NODE_STATUS", failure.Code);
+		Assert.NotNull(failure.InnerException);
+
 		harness.Shutdown();
 	}
 

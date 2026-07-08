@@ -190,7 +190,7 @@ public enum AssetContentType
 {
 	/// <summary>Markdown the client may render.</summary>
 	Markdown,
-	/// <summary>Plain text the client shows verbatim.</summary>
+	/// <summary>Plain text the client shows unchanged.</summary>
 	Plaintext,
 }
 

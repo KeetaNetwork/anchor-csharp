@@ -98,9 +98,14 @@ internal static class HexValue
 			throw new KeetaException("HASH_LENGTH", $"expected {expectedBytes * 2} hex characters, got {hex.Length}");
 		}
 
-		// Round-tripping through bytes rejects non-hex characters up front.
-		// (Convert.ToHexStringLower needs .NET 9. net8.0 is still targeted.)
-		byte[] value = Convert.FromHexString(hex);
-		return Convert.ToHexString(value).ToLowerInvariant();
+		try
+		{
+			byte[] value = Convert.FromHexString(hex);
+			return Convert.ToHexString(value).ToLowerInvariant();
+		}
+		catch (FormatException error)
+		{
+			throw new KeetaException("HASH_FORMAT", "the hash is not valid hex", error);
+		}
 	}
 }

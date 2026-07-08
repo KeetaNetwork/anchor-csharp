@@ -57,6 +57,20 @@ public sealed class AssetFlowTests
 		JsonElement simulatedInstruction = Assert.Single(simulated.InstructionChoices);
 		Assert.Equal("KEETA_SEND", simulatedInstruction.GetProperty("type").GetString());
 
+		// Promoting the simulation initiates with the simulated request: the
+		// provider reports the recipient that request carried.
+		AssetTransfer promoted = await simulated.CreateTransfer(cancellationToken: cancellationToken);
+		Assert.Equal("123", promoted.Id);
+		Assert.Equal(
+			$"123:{anchor.SendToAddress}",
+			Assert.Single(promoted.InstructionChoices).GetProperty("external").GetString());
+
+		// A recipient supplied at promotion overrides the simulated one.
+		AssetTransfer redirected = await simulated.CreateTransfer(anchor.Signer, "integration", cancellationToken);
+		Assert.Equal(
+			$"123:{anchor.Signer}",
+			Assert.Single(redirected.InstructionChoices).GetProperty("external").GetString());
+
 		AssetTransfer transfer = await client.InitiateTransfer(provider, PushTransfer(anchor, anchor.SendToAddress), cancellationToken);
 		Assert.Equal("123", transfer.Id);
 		Assert.Equal(
