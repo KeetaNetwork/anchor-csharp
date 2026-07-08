@@ -1,4 +1,4 @@
-.PHONY: help developer restore build rebuild do-lint do-lint-ci test pack clean wasm node-harness release
+.PHONY: help developer restore build rebuild do-lint do-lint-ci test pack clean wasm node-api node-harness release
 
 # Build configuration (Debug or Release)
 CONFIG ?= Release
@@ -65,6 +65,10 @@ pack: build
 wasm:
 	./scripts/build-wasm.sh
 
+# Regenerate the node REST transport from the pinned OpenAPI spec (committed)
+node-api:
+	./scripts/generate-node-api.sh
+
 $(WASM_DEST):
 	./scripts/build-wasm.sh
 
@@ -103,6 +107,7 @@ help:
 	@echo "  make do-lint      - Lint code with formatting fixes (C# + harness + spelling)"
 	@echo "  make pack         - Produce the NuGet packages into $(ARTIFACTS)/"
 	@echo "  make wasm         - Build the P1 wasm core from the pinned crates.io release"
+	@echo "  make node-api     - Regenerate the node REST transport from the pinned OpenAPI spec"
 	@echo "  make clean        - Remove build outputs"
 	@echo ""
 	@echo "CI Commands:"

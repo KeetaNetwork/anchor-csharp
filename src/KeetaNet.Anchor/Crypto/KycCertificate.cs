@@ -124,7 +124,7 @@ public sealed class KycCertificate : WasmObject
 /// <summary>
 /// A fluent builder for a KYC leaf certificate: collect a subject, issuer,
 /// validity window, and attributes, then <see cref="Build"/> the signed
-/// leaf. Sensitive attributes are encrypted to the subject; the issuer
+/// leaf. Sensitive attributes are encrypted to the subject. The issuer
 /// signs. The subject and issuer may use different signing algorithms.
 /// </summary>
 public sealed class KycCertificateBuilder
@@ -142,7 +142,7 @@ public sealed class KycCertificateBuilder
 
 	internal KycCertificateBuilder(WasmRuntime runtime) => _runtime = runtime;
 
-	/// <summary>The subject the leaf is issued to; sensitive attributes encrypt to its key.</summary>
+	/// <summary>The subject the leaf is issued to. Sensitive attributes encrypt to its key.</summary>
 	/// <remarks>A read-only (public-key) account suffices to issue.</remarks>
 	public KycCertificateBuilder Subject(Account subject)
 	{

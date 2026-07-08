@@ -72,7 +72,7 @@ public sealed class LifecycleTests
 		runtime.Dispose();
 
 		await Assert.ThrowsAsync<ObjectDisposedException>(
-			() => client.GetProvidersAsync(Countries, TestContext.Current.CancellationToken));
+			() => client.GetProviders(Countries, TestContext.Current.CancellationToken));
 	}
 
 	[Fact]

@@ -1,8 +1,8 @@
 namespace KeetaNet.Anchor;
 
 /// <summary>
-/// A failure surfaced from the wasm core: a programmatic <see cref="Code"/> plus
-/// a human-readable message.
+/// A failure surfaced from the SDK (the wasm core or the node transport): a
+/// programmatic <see cref="Code"/> plus a human-readable message.
 /// </summary>
 public sealed class KeetaException : Exception
 {
@@ -16,18 +16,11 @@ public sealed class KeetaException : Exception
 	}
 
 	/// <summary>
-	/// Parse a wasm <c>code: message</c> error string back into an exception.
+	/// Build a failure from its stable <paramref name="code"/> and human-readable
+	/// <paramref name="message"/>, preserving the <paramref name="cause"/> it wraps.
 	/// </summary>
-	internal static KeetaException Parse(string encoded)
+	public KeetaException(string code, string message, Exception cause) : base($"{code}: {message}", cause)
 	{
-		int separator = encoded.IndexOf(": ", StringComparison.Ordinal);
-		if (separator < 0)
-		{
-			return new KeetaException("UNKNOWN", encoded);
-		}
-
-		string code = encoded[..separator];
-		string message = encoded[(separator + 2)..];
-		return new KeetaException(code, message);
+		Code = code;
 	}
 }

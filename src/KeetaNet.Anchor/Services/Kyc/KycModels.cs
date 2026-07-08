@@ -19,6 +19,37 @@ public sealed record KycProvider(
 	IReadOnlyList<string>? CountryCodes);
 
 /// <summary>
+/// The countries KYC providers can validate, aggregated across every root
+/// (the reference <c>getSupportedCountries</c>): <see cref="Worldwide"/> when
+/// any provider publishes no country list, otherwise the sorted, deduplicated
+/// union of the published codes.
+/// </summary>
+public sealed record SupportedCountries(bool Worldwide, IReadOnlyList<string> Countries)
+{
+	/// <summary>Fold discovered <paramref name="providers"/> into their aggregate coverage.</summary>
+	public static SupportedCountries FromProviders(IEnumerable<KycProvider> providers)
+	{
+		var countries = new List<string>();
+		foreach (KycProvider provider in providers)
+		{
+			if (provider.CountryCodes is null)
+			{
+				return new SupportedCountries(true, Array.Empty<string>());
+			}
+
+			countries.AddRange(provider.CountryCodes);
+		}
+
+		string[] union = countries
+			.Distinct(StringComparer.Ordinal)
+			.OrderBy(code => code, StringComparer.Ordinal)
+			.ToArray();
+
+		return new SupportedCountries(false, union);
+	}
+}
+
+/// <summary>
 /// The cost a provider expects to charge for a verification: a <see cref="Token"/>
 /// and the <see cref="Min"/>/<see cref="Max"/> bounds, decimal strings in that token's units.
 /// </summary>

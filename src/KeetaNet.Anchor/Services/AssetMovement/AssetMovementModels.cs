@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -47,12 +48,9 @@ public sealed record AssetTransferSource(string Location, object? Source = null)
 /// </summary>
 public sealed record AssetTransferDestination(string Location, object? Recipient = null, string? DepositMessage = null);
 
-/// <summary>
-/// A request to simulate or initiate a transfer. <paramref name="Asset"/> is a
-/// canonical asset string or a <c>{ from, to }</c> pair.
-/// </summary>
+/// <summary>A request to simulate or initiate a transfer.</summary>
 public sealed record AssetTransferRequest(
-	object Asset,
+	AssetOrPair Asset,
 	AssetTransferSource From,
 	AssetTransferDestination To,
 	string Value,
@@ -69,7 +67,7 @@ public sealed record AssetPullInstruction(string Type, object PullFrom);
 public sealed record AssetExecuteRequest(string Id, AssetPullInstruction Instruction);
 
 /// <summary>A request to open a persistent-forwarding template session.</summary>
-public sealed record AssetInitiateTemplateRequest(object Asset, string Location);
+public sealed record AssetInitiateTemplateRequest(AssetOrPair Asset, string Location);
 
 /// <summary>
 /// A request to create a persistent-forwarding template: either a direct
@@ -77,7 +75,7 @@ public sealed record AssetInitiateTemplateRequest(object Asset, string Location)
 /// <paramref name="Address"/>) or the completion of a session (<paramref name="Data"/>).
 /// </summary>
 public sealed record AssetCreateTemplateRequest(
-	object? Asset = null,
+	AssetOrPair? Asset = null,
 	string? Location = null,
 	object? Address = null,
 	string? Id = null,
@@ -91,7 +89,7 @@ public sealed record AssetListTemplatesRequest(
 /// <summary>A request to create a persistent-forwarding address.</summary>
 public sealed record AssetCreateAddressRequest(
 	string SourceLocation,
-	object Asset,
+	AssetOrPair Asset,
 	string? OutgoingRail = null,
 	string? IncomingRail = null,
 	string? DestinationLocation = null,
@@ -135,12 +133,11 @@ public sealed record AssetListTransactionsRequest(
 public sealed record AssetShareKycRequest(string Attributes, object? TosAgreement = null);
 
 /// <summary>
-/// A transfer search: an optional asset (a canonical string or a
-/// <c>{ from, to }</c> pair), the endpoints value must move between, and the
-/// directional rails each endpoint must advertise.
+/// A transfer search: an optional asset, the endpoints value must move
+/// between, and the directional rails each endpoint must advertise.
 /// </summary>
 public sealed record AssetProviderSearch(
-	object? Asset = null,
+	AssetOrPair? Asset = null,
 	string? From = null,
 	string? To = null,
 	IReadOnlyList<string>? InboundRails = null,
@@ -177,9 +174,71 @@ public sealed record AssetShareKycOutcome(
 
 /// <summary>
 /// The signer's readiness with a provider: <see cref="ActionRequired"/> and, when
-/// set, the polymorphic <see cref="Blockers"/> the caller must resolve first.
+/// set, the typed <see cref="Blockers"/> the caller must resolve first.
 /// </summary>
-public sealed record AssetAccountStatus(bool ActionRequired, IReadOnlyList<JsonElement>? Blockers = null);
+public sealed record AssetAccountStatus(bool ActionRequired, IReadOnlyList<AssetMovementBlocker>? Blockers = null);
+
+/// <summary>Why a provider publishes a disclaimer; the reference schema defines only <c>general</c>.</summary>
+public enum AssetDisclaimerPurpose
+{
+	/// <summary>A general disclaimer.</summary>
+	General,
+}
+
+/// <summary>How a disclaimer body is encoded.</summary>
+public enum AssetContentType
+{
+	/// <summary>Markdown the client may render.</summary>
+	Markdown,
+	/// <summary>Plain text the client shows unchanged.</summary>
+	Plaintext,
+}
+
+/// <summary>
+/// Content a client may render directly (the reference
+/// <c>ClientRenderableContent</c>): markdown or plain text with no display
+/// guarantees, so it must carry context only, never critical information.
+/// </summary>
+public sealed record AssetRenderableContent(AssetContentType Type, string Content);
+
+/// <summary>One legal disclaimer a provider publishes under its <c>legal</c> metadata.</summary>
+public sealed record AssetDisclaimer(AssetDisclaimerPurpose Purpose, AssetRenderableContent Content);
+
+/// <summary>
+/// The token metadata a provider advertises for one asset at one location
+/// (the reference <c>AnchorTokenLocationMetadata</c>).
+/// </summary>
+public sealed record AssetTokenMetadata(
+	[property: JsonConverter(typeof(FlexibleUIntConverter))] uint DecimalPlaces,
+	[property: JsonPropertyName("logoURI")] string? LogoUri = null,
+	string? DisplayName = null,
+	string? Ticker = null);
+
+/// <summary>
+/// Reads a count published as a JSON number or a numeric string; the
+/// reference <c>TokenMetadataJSON</c> allows both for <c>decimalPlaces</c>.
+/// </summary>
+internal sealed class FlexibleUIntConverter : JsonConverter<uint>
+{
+	public override uint Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		if (reader.TokenType != JsonTokenType.String)
+		{
+			return reader.GetUInt32();
+		}
+
+		string text = reader.GetString() ?? "";
+		if (!uint.TryParse(text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out uint parsed))
+		{
+			throw new JsonException($"'{text}' is not a numeric count");
+		}
+
+		return parsed;
+	}
+
+	public override void Write(Utf8JsonWriter writer, uint value, JsonSerializerOptions options) =>
+		writer.WriteNumberValue(value);
+}
 
 /// <summary>
 /// Typed access to the polymorphic asset-movement address surface

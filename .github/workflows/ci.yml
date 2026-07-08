@@ -38,7 +38,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'scripts/fetch-crate.sh', 'scripts/pins.env', 'rust-toolchain.toml') }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -136,7 +136,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             .wasm-build
-          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'rust-toolchain.toml') }}
+          key: wasm-${{ runner.os }}-${{ hashFiles('scripts/build-wasm.sh', 'scripts/fetch-crate.sh', 'scripts/pins.env', 'rust-toolchain.toml') }}
 
       - name: Build wasm core
         run: bash scripts/build-wasm.sh

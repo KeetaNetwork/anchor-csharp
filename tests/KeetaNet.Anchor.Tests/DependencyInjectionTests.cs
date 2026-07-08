@@ -30,4 +30,20 @@ public sealed class DependencyInjectionTests
 
 		Assert.True(runtime.IsDisposed);
 	}
+
+	[Fact]
+	public void RegistersANodeClientBackedByTheHttpClientFactory()
+	{
+		var services = new ServiceCollection();
+		services.AddKeetaNetAnchorNodeClient("http://127.0.0.1:1/api/node");
+
+		using ServiceProvider provider = services.BuildServiceProvider();
+		using NodeClient first = provider.GetRequiredService<NodeClient>();
+		using NodeClient second = provider.GetRequiredService<NodeClient>();
+		Assert.NotSame(first, second);
+
+		// The node-client registration also provides the shared runtime.
+		WasmRuntime runtime = provider.GetRequiredService<WasmRuntime>();
+		Assert.False(runtime.IsDisposed);
+	}
 }

@@ -58,5 +58,12 @@ public sealed class Certificate : WasmObject
 	/// </summary>
 	public string SubjectPublicKey => Runtime.CertificateSubjectPublicKey(Handle);
 
+	/// <summary>
+	/// The SHA3-256 of the certificate's DER: the key the ledger stores a
+	/// published certificate under, so it feeds
+	/// <see cref="NodeClient.GetCertificateByHash(Account, CertificateHash, CancellationToken)"/>.
+	/// </summary>
+	public CertificateHash Hash => CertificateHash.Parse(Runtime.CertificateHash(Convert.ToHexString(ToDer())));
+
 	private protected override void Release(WasmRuntime runtime, int handle) => runtime.CertificateFree(handle);
 }

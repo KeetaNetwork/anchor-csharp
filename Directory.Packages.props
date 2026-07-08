@@ -8,6 +8,7 @@
 	<ItemGroup>
 		<PackageVersion Include="Wasmtime" Version="44.0.0" />
 		<PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.2" />
+		<PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.2" />
 	</ItemGroup>
 
 	<ItemGroup Label="Test">

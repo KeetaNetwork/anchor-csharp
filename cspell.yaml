@@ -56,7 +56,10 @@ words:
   - belgrave
   - idisp
   - lifecycles
+  - renderable
   - tlsv
+  - csclient
+  - nswag
   - rasn
   - rustfmt
   - userprofile
@@ -66,3 +69,5 @@ words:
   - msys
   - maxdepth
   - powershell
+  - renderable
+  - solana

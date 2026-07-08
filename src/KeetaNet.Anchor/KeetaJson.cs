@@ -13,7 +13,11 @@ internal static class KeetaJson
 	{
 		PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
 		DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-		Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
+		Converters =
+		{
+			new JsonStringEnumConverter(JsonNamingPolicy.CamelCase),
+			new AssetMovementBlockerConverter(),
+		},
 	};
 
 	/// <summary>Deserialize a JSON array payload, mapping an absent body to an empty list.</summary>

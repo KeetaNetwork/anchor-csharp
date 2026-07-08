@@ -43,34 +43,34 @@ public sealed partial class WasmRuntime
 	internal Task<byte[]> AssetAccountStatus(int handle, string providerJson, CancellationToken cancellationToken) =>
 		RunAsync(() => WithHandleAndText("keeta_asset_account_status", handle, providerJson), cancellationToken);
 
-	internal Task<byte[]> AssetInitiateForwardingTemplate(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_initiate_forwarding_template", handle, providerJson, requestJson), cancellationToken);
+	internal Task<byte[]> AssetInitiatePersistentForwardingTemplate(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_initiate_persistent_forwarding_template", handle, providerJson, requestJson), cancellationToken);
 
-	internal Task<byte[]> AssetCreateForwardingTemplate(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_create_forwarding_template", handle, providerJson, requestJson), cancellationToken);
+	internal Task<byte[]> AssetCreatePersistentForwardingTemplate(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_create_persistent_forwarding_template", handle, providerJson, requestJson), cancellationToken);
 
-	internal Task<byte[]> AssetListForwardingTemplates(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_list_forwarding_templates", handle, providerJson, requestJson), cancellationToken);
+	internal Task<byte[]> AssetListForwardingAddressTemplates(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_list_forwarding_address_templates", handle, providerJson, requestJson), cancellationToken);
 
-	internal Task<byte[]> AssetCreateForwardingAddress(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_create_forwarding_address", handle, providerJson, requestJson), cancellationToken);
+	internal Task<byte[]> AssetCreatePersistentForwardingAddress(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_create_persistent_forwarding_address", handle, providerJson, requestJson), cancellationToken);
 
 	internal Task<byte[]> AssetListForwardingAddresses(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
 		RunAsync(() => WithProviderAndArg("keeta_asset_list_forwarding_addresses", handle, providerJson, requestJson), cancellationToken);
 
-	internal Task<byte[]> AssetDeactivateForwardingTemplate(int handle, string providerJson, string id, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_deactivate_forwarding_template", handle, providerJson, id), cancellationToken);
+	internal Task<byte[]> AssetDeactivatePersistentForwardingTemplate(int handle, string providerJson, string id, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_deactivate_persistent_forwarding_template", handle, providerJson, id), cancellationToken);
 
-	internal Task<byte[]> AssetDeactivateForwardingAddress(int handle, string providerJson, string id, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_deactivate_forwarding_address", handle, providerJson, id), cancellationToken);
+	internal Task<byte[]> AssetDeactivatePersistentForwardingAddress(int handle, string providerJson, string id, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_deactivate_persistent_forwarding_address", handle, providerJson, id), cancellationToken);
 
 	internal Task<byte[]> AssetListTransactions(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
 		RunAsync(() => WithProviderAndArg("keeta_asset_list_transactions", handle, providerJson, requestJson), cancellationToken);
 
-	internal Task<byte[]> AssetShareKyc(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
-		RunAsync(() => WithProviderAndArg("keeta_asset_share_kyc", handle, providerJson, requestJson), cancellationToken);
+	internal Task<byte[]> AssetShareKycAttributes(int handle, string providerJson, string requestJson, CancellationToken cancellationToken) =>
+		RunAsync(() => WithProviderAndArg("keeta_asset_share_kyc_attributes", handle, providerJson, requestJson), cancellationToken);
 
-	internal Task<byte[]> AssetShareKycAwait(
+	internal Task<byte[]> AssetShareKycAttributesAndWait(
 		int handle,
 		string providerJson,
 		string requestJson,
@@ -85,7 +85,7 @@ public sealed partial class WasmRuntime
 				Argument request = arguments.Write(requestJson);
 
 				int result = Invoke<int, int, int, int, int, int, int, int>(
-					"keeta_asset_share_kyc_await",
+					"keeta_asset_share_kyc_attributes_and_wait",
 					handle,
 					provider.Pointer, provider.Length,
 					request.Pointer, request.Length,

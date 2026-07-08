@@ -32,16 +32,20 @@ internal sealed class AssetSession : IDisposable
 		CancellationToken = TestContext.Current.CancellationToken;
 	}
 
-	/// <summary>Boot the anchor and connect a signed client to it.</summary>
-	public static AssetSession Open()
+	/// <summary>
+	/// Boot the anchor and connect a signed client to it. With
+	/// <paramref name="blockCaller"/> the anchor reports the session's own
+	/// signer as blocked, so <c>getAccountStatus</c> serves typed blockers.
+	/// </summary>
+	public static AssetSession Open(bool blockCaller = false)
 	{
 		NodeHarness harness = NodeHarness.Spawn("asset");
 		try
 		{
-			AssetAnchor anchor = AssetAnchor.Start(harness);
 			WasmRuntime runtime = WasmRuntime.Load();
 			Account signer = runtime.Accounts.FromSeed(E2eSeeds.Caller, 0, E2eSeeds.Secp256k1);
-			AssetMovementClient client = runtime.CreateAssetMovementClient(anchor.Api, anchor.Root, signer);
+			AssetAnchor anchor = AssetAnchor.Start(harness, blockCaller ? signer.Address : null);
+			AssetMovementClient client = runtime.CreateAssetMovementClient(anchor.NodeApi, anchor.Root, signer);
 
 			return new AssetSession(harness, anchor, runtime, signer, client);
 		}
@@ -65,7 +69,7 @@ internal sealed class AssetSession : IDisposable
 	/// <summary>The single provider the running anchor publishes.</summary>
 	public async Task<AssetProvider> DiscoveredProviderAsync()
 	{
-		AssetProvider? provider = await Client.GetProviderByIdAsync(Anchor.ProviderId, CancellationToken);
+		AssetProvider? provider = await Client.GetProviderById(Anchor.ProviderId, CancellationToken);
 		Assert.NotNull(provider);
 
 		return provider!;

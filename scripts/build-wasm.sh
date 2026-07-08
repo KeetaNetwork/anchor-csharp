@@ -3,26 +3,17 @@
 # the library embeds it.
 set -euo pipefail
 
-CRATE_NAME="keetanetwork-anchor-client-wasi"
-CRATE_VERSION="0.1.1"
-CRATE_SHA256="dd5c19da144a320d23d5b0b1af392ea6c94f6b7cb584e490bcf42155c768d9d6"
-
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# shellcheck source=scripts/pins.env
+source "${ROOT}/scripts/pins.env"
+# shellcheck source=scripts/fetch-crate.sh
+source "${ROOT}/scripts/fetch-crate.sh"
+
 BUILD_DIR="${ROOT}/.wasm-build"
-TARBALL="${BUILD_DIR}/${CRATE_NAME}-${CRATE_VERSION}.crate"
-CRATE_DIR="${BUILD_DIR}/${CRATE_NAME}-${CRATE_VERSION}"
+CRATE_DIR="${BUILD_DIR}/${ANCHOR_WASI_CRATE}-${ANCHOR_WASI_VERSION}"
 ARTIFACT="${CRATE_DIR}/target/wasm32-wasip1/release/keetanetwork_anchor_client_wasi.wasm"
 DEST="${ROOT}/src/KeetaNet.Anchor/wasm/keetanetwork_anchor_client_wasi.wasm"
-DOWNLOAD_URL="https://crates.io/api/v1/crates/${CRATE_NAME}/${CRATE_VERSION}/download"
-
-checksum() {
-	local file="$1"
-	if command -v sha256sum >/dev/null 2>&1; then
-		sha256sum "${file}" | cut -d' ' -f1
-	else
-		shasum -a 256 "${file}" | cut -d' ' -f1
-	fi
-}
 
 # rasn-compiler probes `$CARGO_HOME/bin/rustfmt` and `$CARGO`-adjacent
 # `rustfmt` without the .exe suffix. When both miss it silently emits
@@ -102,31 +93,6 @@ require_wasip1_target() {
 	fi
 }
 
-fetch_crate() {
-	mkdir -p "${BUILD_DIR}"
-	if [[ ! -f "${TARBALL}" ]]; then
-		echo "build-wasm: downloading ${CRATE_NAME} ${CRATE_VERSION} from crates.io"
-		# crates.io rejects requests without a User-Agent.
-		curl --fail --silent --show-error --location \
-			--proto '=https' --tlsv1.2 \
-			--user-agent "anchor-csharp build-wasm (https://github.com/KeetaNetwork/anchor-csharp)" \
-			--output "${TARBALL}" "${DOWNLOAD_URL}"
-	fi
-
-	actual="$(checksum "${TARBALL}")"
-	if [[ "${actual}" != "${CRATE_SHA256}" ]]; then
-		rm -f "${TARBALL}"
-		echo "build-wasm: checksum mismatch for ${TARBALL}" >&2
-		echo "  expected: ${CRATE_SHA256}" >&2
-		echo "  actual:   ${actual}" >&2
-		exit 1
-	fi
-
-	if [[ ! -d "${CRATE_DIR}" ]]; then
-		tar --extract --gzip --file "${TARBALL}" --directory "${BUILD_DIR}"
-	fi
-}
-
 build_artifact() {
 	echo "build-wasm: cargo build (wasm32-wasip1, features p1, release)"
 	cargo build \
@@ -139,7 +105,7 @@ build_artifact() {
 
 shim_rustfmt_for_windows
 require_wasip1_target
-fetch_crate
+fetch_crate "${ANCHOR_WASI_CRATE}" "${ANCHOR_WASI_VERSION}" "${ANCHOR_WASI_SHA256}" "${BUILD_DIR}"
 purge_stale_asn1_outputs
 build_artifact
 

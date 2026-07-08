@@ -49,7 +49,7 @@ public sealed class ContainerInteropTests
 		Assert.Equal(tsSigner.PublicKeyAndType, Convert.ToHexString(recoveredSigner!), ignoreCase: true);
 	}
 
-	[Fact(Skip = "known zlib compression divergence in the TS reference breaks C#-to-TS signature validation; quarantined pending an upstream compression-parity fix")]
+	[Fact(Skip = "known zlib compression divergence in the TS reference breaks C#-to-TS signature validation; quarantined pending an upstream compression fix")]
 	public void TypescriptDecryptsAndVerifiesTheCsharpContainer()
 	{
 		using var runtime = WasmRuntime.Load();

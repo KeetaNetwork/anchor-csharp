@@ -49,12 +49,12 @@ using KeetaNet.Anchor.Crypto;
 using var runtime = WasmRuntime.Load();
 ```
 
-The runtime exposes one factory per domain — `Accounts`, `Certificates`, `KycCertificates`, `Containers`, `Sharables` — plus `CreateKycClient` and `CreateAssetMovementClient` for the networked clients. Every handle-backed object they create implements `IDisposable`. Wrap them in `using` and dispose them before the runtime.
+The runtime exposes one factory per domain - `Accounts`, `Certificates`, `KycCertificates`, `Containers`, `Sharables` - plus `CreateKycClient` and `CreateAssetMovementClient` for the networked clients. Every handle-backed object they create implements `IDisposable`. Wrap them in `using` and dispose them before the runtime.
 
 In an application using `Microsoft.Extensions.DependencyInjection`, register the runtime once instead of threading it around; the container owns its disposal:
 
 ```csharp
-// Program.cs — requires the KeetaNet.Anchor.Extensions.DependencyInjection package.
+// Program.cs - requires the KeetaNet.Anchor.Extensions.DependencyInjection package.
 builder.Services.AddKeetaNetAnchor();
 
 // Any service: inject the singleton and create what you need per use.
@@ -107,20 +107,20 @@ Provider results use the pending-or-ready shape: `Ready` carries the value, othe
 using KycClient kyc = runtime.CreateKycClient(nodeUrl, root, signer);
 
 string[] countries = { "US" };
-IReadOnlyList<KycProvider> providers = await kyc.GetProvidersAsync(countries, cancellationToken);
+IReadOnlyList<KycProvider> providers = await kyc.GetProviders(countries, cancellationToken);
 KycProvider provider = providers[0];
 
 // Start a verification. The user completes it in a browser at WebUrl.
-VerificationOutcome created = await kyc.StartVerificationAsync(provider, countries, cancellationToken: cancellationToken);
+VerificationOutcome created = await kyc.StartVerification(provider, countries, cancellationToken: cancellationToken);
 Verification verification = created.Ready!;
 Console.WriteLine(verification.WebUrl);
 Console.WriteLine(verification.ExpectedCost.Token);
 
 // Poll the provider's decision.
-StatusOutcome status = await kyc.GetVerificationStatusAsync(provider, verification.Id, cancellationToken);
+StatusOutcome status = await kyc.GetVerificationStatus(provider, verification.Id, cancellationToken);
 
 // Fetch the issued chain once ready; a pending fetch reports RetryAfterMs instead.
-CertificatesOutcome outcome = await kyc.GetCertificatesAsync(provider, verification.Id, cancellationToken);
+CertificatesOutcome outcome = await kyc.GetCertificates(provider, verification.Id, cancellationToken);
 Certificates issued = outcome.Ready!;
 string leafPem = issued.Results[0].Value;
 ```
@@ -235,13 +235,13 @@ byte[]? signerKey = opened.GetSigningAccount(); // type-prefixed public key, nul
 using AssetMovementClient assets = runtime.CreateAssetMovementClient(nodeUrl, root, signer);
 
 // Discovery: all providers, by id, by signer account, or by transfer shape.
-IReadOnlyList<AssetProvider> providers = await assets.GetProvidersAsync(cancellationToken);
+IReadOnlyList<AssetProvider> providers = await assets.GetProviders(cancellationToken);
 var search = new AssetProviderSearch(Asset: asset, From: "chain:evm:100", To: "chain:keeta:100");
-IReadOnlyList<AssetProvider> capable = await assets.GetProvidersForTransferAsync(search, cancellationToken);
+IReadOnlyList<AssetProvider> capable = await assets.GetProvidersForTransfer(search, cancellationToken);
 AssetProvider provider = capable[0];
 
 // Check the signer's readiness before transacting.
-AssetAccountStatus account = await assets.GetAccountStatusAsync(provider, cancellationToken);
+AssetAccountStatus account = await assets.GetAccountStatus(provider, cancellationToken);
 
 // Push transfer: simulate first, then promote the simulation.
 var request = new AssetTransferRequest(
@@ -249,17 +249,17 @@ var request = new AssetTransferRequest(
 	From: new AssetTransferSource("chain:evm:100"),
 	To: new AssetTransferDestination("chain:keeta:100", recipientAddress),
 	Value: "100");
-AssetSimulatedTransfer simulated = await assets.SimulateTransferAsync(provider, request, cancellationToken);
-AssetTransfer transfer = await simulated.CreateTransferAsync(cancellationToken: cancellationToken);
-AssetTransferStatus status = await transfer.GetTransferStatusAsync(cancellationToken);
+AssetSimulatedTransfer simulated = await assets.SimulateTransfer(provider, request, cancellationToken);
+AssetTransfer transfer = await simulated.CreateTransfer(cancellationToken: cancellationToken);
+AssetTransferStatus status = await transfer.GetTransferStatus(cancellationToken);
 
 // Pull transfer (fiat rails): initiate, pick an instruction, execute.
-AssetTransfer pull = await assets.InitiateTransferAsync(provider, pullRequest, cancellationToken);
+AssetTransfer pull = await assets.InitiateTransfer(provider, pullRequest, cancellationToken);
 var instruction = new AssetPullInstruction("ACH_DEBIT", pull.InstructionChoices[0].GetProperty("pullFrom"));
-AssetTransferStatus executed = await pull.ExecuteTransferAsync(instruction, cancellationToken);
+AssetTransferStatus executed = await pull.ExecuteTransfer(instruction, cancellationToken);
 
 // Share KYC attributes; a pending outcome polls its promise URL inside the core.
-AssetShareKycOutcome shared = await assets.ShareKycAttributesAndWaitAsync(
+AssetShareKycOutcome shared = await assets.ShareKycAttributesAndWait(
 	provider,
 	new AssetShareKycRequest(exportedAttributes),
 	pollInterval: TimeSpan.FromSeconds(1),
@@ -267,7 +267,7 @@ AssetShareKycOutcome shared = await assets.ShareKycAttributesAndWaitAsync(
 	cancellationToken: cancellationToken);
 ```
 
-Persistent forwarding follows the same pattern: `InitiatePersistentForwardingTemplateAsync` / `CreatePersistentForwardingTemplateAsync` / `CreatePersistentForwardingAddressAsync` create, the `List*Async` methods page, and the `Deactivate*Async` methods retire.
+Persistent forwarding follows the same pattern: `InitiatePersistentForwardingTemplate` / `CreatePersistentForwardingTemplate` / `CreatePersistentForwardingAddress` create, the `List*` methods page, and the `Deactivate*` methods retire.
 
 ### Errors
 
@@ -276,7 +276,7 @@ Every failure surfaced from the core throws `KeetaException`: a stable machine-r
 ```csharp
 try
 {
-	await assets.InitiateTransferAsync(provider, request, cancellationToken);
+	await assets.InitiateTransfer(provider, request, cancellationToken);
 }
 catch (KeetaException error)
 {
@@ -295,7 +295,7 @@ Interop is Wasmtime-hosted WebAssembly, not native P/Invoke. Guest memory is a s
 ### SDK Rules:
 
 - **Thread-safe by construction.** A `WasmRuntime` owns one Wasmtime `Store`, which cannot be used from more than one thread. The runtime confines it to a dedicated dispatcher thread and serializes every call onto it, so any thread may use the SDK: offline operations dispatch synchronously, networked client operations are `async` and accept a `CancellationToken`.
-- **Deterministic disposal.** Handle-backed types (`Account`, `Certificate`, `KycCertificate`, containers, the clients) implement `IDisposable` and release their wasm handle on `Dispose`. Wrap them in `using`. A finalizer backstop reclaims forgotten handles by enqueueing the free onto the dispatcher, but deterministic disposal remains the contract.
+- **Deterministic disposal.** Handle-backed types (`Account`, `Certificate`, `KycCertificate`, containers, the clients) implement `IDisposable` and release their wasm handle on `Dispose`. Wrap them in `using`.
 
 ## License
 
