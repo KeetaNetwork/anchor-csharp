@@ -10,13 +10,20 @@ public static class KeetaNetAnchorServiceCollectionExtensions
 {
 	/// <summary>
 	/// Register the shared <see cref="WasmRuntime"/> as a singleton, loading the
-	/// embedded wasm core on first resolve. The container disposes it on
-	/// shutdown. The runtime is thread-safe.
+	/// embedded wasm core on first resolve, along with its factory surfaces so
+	/// consumers can inject a factory directly instead of the runtime. The
+	/// container disposes the runtime on shutdown. The runtime is thread-safe.
 	/// </summary>
 	/// <returns>The same collection, for chaining.</returns>
 	public static IServiceCollection AddKeetaNetAnchor(this IServiceCollection services)
 	{
 		services.TryAddSingleton(static _ => WasmRuntime.Load());
+		services.TryAddSingleton(static provider => provider.GetRequiredService<WasmRuntime>().Accounts);
+		services.TryAddSingleton(static provider => provider.GetRequiredService<WasmRuntime>().Certificates);
+		services.TryAddSingleton(static provider => provider.GetRequiredService<WasmRuntime>().KycCertificates);
+		services.TryAddSingleton(static provider => provider.GetRequiredService<WasmRuntime>().Containers);
+		services.TryAddSingleton(static provider => provider.GetRequiredService<WasmRuntime>().Sharables);
+
 		return services;
 	}
 

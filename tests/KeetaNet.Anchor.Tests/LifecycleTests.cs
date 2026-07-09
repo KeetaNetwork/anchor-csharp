@@ -26,7 +26,7 @@ public sealed class LifecycleTests
 
 		account.Dispose();
 
-		Assert.Throws<ObjectDisposedException>(() => account.Address);
+		Assert.Throws<ObjectDisposedException>(() => account.PublicKeyString);
 		Assert.Throws<ObjectDisposedException>(() => account.Sign(new byte[] { 1 }));
 	}
 
@@ -59,7 +59,7 @@ public sealed class LifecycleTests
 		runtime.Dispose();
 
 		// Use refuses cleanly, and the wrapper's own dispose (via using) no-ops.
-		Assert.Throws<ObjectDisposedException>(() => account.Address);
+		Assert.Throws<ObjectDisposedException>(() => account.PublicKeyString);
 	}
 
 	[Fact]
@@ -67,7 +67,7 @@ public sealed class LifecycleTests
 	{
 		var runtime = WasmRuntime.Load();
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using KycClient client = runtime.CreateKycClient(TestSeeds.NonRoutableAnchor, account.Address, account);
+		using KycClient client = runtime.CreateKycClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
 
 		runtime.Dispose();
 
@@ -91,7 +91,7 @@ public sealed class LifecycleTests
 
 		// The queued backstop free must leave the dispatcher healthy.
 		using Account survivor = runtime.Accounts.FromSeed(TestSeeds.Subject, 1, TestSeeds.DefaultAlgorithm);
-		Assert.StartsWith("keeta_", survivor.Address, StringComparison.Ordinal);
+		Assert.StartsWith("keeta_", survivor.PublicKeyString, StringComparison.Ordinal);
 	}
 
 #if DEBUG
@@ -120,6 +120,6 @@ public sealed class LifecycleTests
 	private static void LeakAccount(WasmRuntime runtime)
 	{
 		Account leaked = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		Assert.StartsWith("keeta_", leaked.Address, StringComparison.Ordinal);
+		Assert.StartsWith("keeta_", leaked.PublicKeyString, StringComparison.Ordinal);
 	}
 }

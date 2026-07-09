@@ -97,7 +97,7 @@ public sealed class KycFlowTests
 		// The harness records two certificates for a fresh holder: a leaf with
 		// the CA as its intermediate bundle, and a bare leaf without one.
 		PublishedChain chain = PublishedChain.Publish(harness);
-		using Account holder = runtime.Accounts.FromAccount(chain.Account);
+		using Account holder = runtime.Accounts.FromPublicKeyString(chain.Account);
 
 		IReadOnlyList<Certificate> records = await client.GetAllCertificates(holder, cancellationToken);
 		Assert.Equal(2, records.Count);
@@ -147,7 +147,7 @@ public sealed class KycFlowTests
 		// then nibble at the amount), so the three balance reads must agree on
 		// one positive settled amount under the base token.
 		PublishedChain chain = PublishedChain.Publish(harness);
-		using Account holder = runtime.Accounts.FromAccount(chain.Account);
+		using Account holder = runtime.Accounts.FromPublicKeyString(chain.Account);
 
 		AccountState state = await client.GetAccountState(holder, cancellationToken);
 		Assert.NotNull(state.HeadBlock);
@@ -156,7 +156,7 @@ public sealed class KycFlowTests
 
 		IReadOnlyList<TokenBalance> balances = await client.GetAccountBalances(holder, cancellationToken);
 		TokenBalance listed = Assert.Single(balances);
-		Assert.Equal(funding.Token.Address, listed.Token.Address);
+		Assert.Equal(funding.Token.PublicKeyString, listed.Token.PublicKeyString);
 		Assert.Equal(funding.Balance, listed.Balance);
 
 		// The token account the state read returned round-trips as the typed
@@ -178,7 +178,7 @@ public sealed class KycFlowTests
 		using NodeClient client = runtime.CreateNodeClient(anchor.NodeApi);
 
 		PublishedChain chain = PublishedChain.Publish(harness);
-		using Account holder = runtime.Accounts.FromAccount(chain.Account);
+		using Account holder = runtime.Accounts.FromPublicKeyString(chain.Account);
 		using CryptoCertificate publisherCa = runtime.Certificates.Parse(chain.Ca);
 		CryptoCertificate[] trusted = { publisherCa };
 		DateTimeOffset now = DateTimeOffset.UtcNow;

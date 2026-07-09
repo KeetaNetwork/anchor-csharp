@@ -44,12 +44,58 @@ public sealed class IssueTests
 
 		byte[] postalCode = parsed.GetAttributeBuffer("postalCode");
 		Assert.Equal("12345", Encoding.UTF8.GetString(postalCode));
+		Assert.Equal("12345", parsed.GetAttribute("postalCode").AsText());
 		Assert.Equal("user@example.com", parsed.GetAttribute("email", subject).AsText());
 		Assert.Equal(dateOfBirth, parsed.GetAttribute("dateOfBirth", subject).AsTimestamp());
 
 		JsonElement decodedAddress = parsed.GetAttribute("address", subject).AsJson();
 		JsonElement addressPostalCode = decodedAddress.GetProperty("postalCode");
 		Assert.Equal("34677", addressPostalCode.GetString());
+
+		// The leaf is valid strictly inside its issued window.
+		Assert.True(parsed.IsValidAt(TestSeeds.NotBefore.AddDays(1)));
+		Assert.False(parsed.IsValidAt(TestSeeds.NotBefore.AddDays(-1)));
+		Assert.False(parsed.IsValidAt(TestSeeds.NotAfter.AddDays(1)));
+	}
+
+	[Fact]
+	public void AnIncompleteBuilderRefusesToIssue()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, "ecdsa_secp256k1");
+
+		Assert.Throws<InvalidOperationException>(() =>
+		{
+			using KycCertificate leaf = runtime.KycCertificates.Builder().Build();
+		});
+		Assert.Throws<InvalidOperationException>(() =>
+		{
+			using KycCertificate leaf = runtime.KycCertificates.Builder().Subject(subject).Build();
+		});
+		Assert.Throws<InvalidOperationException>(() =>
+		{
+			using KycCertificate leaf = runtime.KycCertificates.Builder().Subject(subject).Issuer(issuer).Build();
+		});
+	}
+
+	[Fact]
+	public void OmittedNamesAndSerialTakeTheirDefaults()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, "ecdsa_secp256k1");
+
+		// Distinguished names default to the accounts' public-key strings and
+		// the serial to 1, so the minimal builder still issues a signed leaf.
+		using KycCertificate minimal = runtime.KycCertificates.Builder()
+			.Subject(subject)
+			.Issuer(issuer)
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
+			.Build();
+
+		Assert.Contains("BEGIN CERTIFICATE", minimal.ToPem(), StringComparison.Ordinal);
+		Assert.Empty(minimal.GetAttributeNames());
 	}
 
 	[Fact]

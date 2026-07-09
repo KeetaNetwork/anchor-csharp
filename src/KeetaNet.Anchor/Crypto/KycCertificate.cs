@@ -12,6 +12,21 @@ namespace KeetaNet.Anchor.Crypto;
 public sealed record AttributeProof(string Value, string Salt);
 
 /// <summary>
+/// One external blob reference discovered in an attribute's decoded value: the
+/// carrying <see cref="Attribute"/> name, the uppercase-hex digest <see cref="Id"/>
+/// keying the blob, where the stored blob lives (<see cref="Url"/>,
+/// <see cref="ContentType"/>), and the digest/encryption algorithms as
+/// symbolic names.
+/// </summary>
+public sealed record AttributeReference(
+	string Attribute,
+	string Id,
+	string Url,
+	string ContentType,
+	string DigestAlgorithm,
+	string EncryptionAlgorithm);
+
+/// <summary>
 /// A KYC leaf certificate: a base certificate plus parsed KYC attributes, some
 /// plain and some encrypted to the subject.
 /// </summary>
@@ -95,6 +110,19 @@ public sealed class KycCertificate : WasmObject
 	}
 
 	/// <summary>
+	/// The external blob references carried by the <paramref name="names"/>
+	/// attributes, discovered with <paramref name="subject"/> (sensitive values
+	/// are decrypted to walk them), one record per reference.
+	/// </summary>
+	public IReadOnlyList<AttributeReference> GetExternalReferences(Account subject, IEnumerable<string> names)
+	{
+		string labels = JsonSerializer.Serialize(names.ToArray());
+		byte[] payload = Runtime.KycCertificateExternalReferences(Handle, subject.Handle, labels);
+
+		return KeetaJson.ReadList<AttributeReference>(payload);
+	}
+
+	/// <summary>
 	/// A proof of sensitive attribute <paramref name="name"/>, decrypted with
 	/// <paramref name="subject"/>. The proof validates against this certificate
 	/// without the private key, for selective disclosure.
@@ -136,8 +164,7 @@ public sealed class KycCertificateBuilder
 	private string? _subjectName;
 	private string? _issuerName;
 	private ulong _serial = 1;
-	private DateTimeOffset? _notBefore;
-	private DateTimeOffset? _notAfter;
+	private (DateTimeOffset NotBefore, DateTimeOffset NotAfter)? _validity;
 	private bool _isCertificateAuthority;
 
 	internal KycCertificateBuilder(WasmRuntime runtime) => _runtime = runtime;
@@ -157,14 +184,14 @@ public sealed class KycCertificateBuilder
 		return this;
 	}
 
-	/// <summary>The subject distinguished-name common name (defaults to the subject's address).</summary>
+	/// <summary>The subject distinguished-name common name (defaults to the subject's public-key string).</summary>
 	public KycCertificateBuilder SubjectName(string name)
 	{
 		_subjectName = name;
 		return this;
 	}
 
-	/// <summary>The issuer distinguished-name common name (defaults to the issuer's address).</summary>
+	/// <summary>The issuer distinguished-name common name (defaults to the issuer's public-key string).</summary>
 	public KycCertificateBuilder IssuerName(string name)
 	{
 		_issuerName = name;
@@ -181,9 +208,7 @@ public sealed class KycCertificateBuilder
 	/// <summary>The validity window. Required, since a component has no clock.</summary>
 	public KycCertificateBuilder Validity(DateTimeOffset notBefore, DateTimeOffset notAfter)
 	{
-		_notBefore = notBefore;
-		_notAfter = notAfter;
-
+		_validity = (notBefore, notAfter);
 		return this;
 	}
 
@@ -234,15 +259,14 @@ public sealed class KycCertificateBuilder
 	{
 		Account subject = _subject ?? throw new InvalidOperationException("a subject account is required to issue a certificate");
 		Account issuer = _issuer ?? throw new InvalidOperationException("an issuer account is required to issue a certificate");
-		long notBefore = _notBefore?.ToUnixTimeSeconds() ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
-		long notAfter = _notAfter?.ToUnixTimeSeconds() ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
+		(DateTimeOffset notBefore, DateTimeOffset notAfter) = _validity ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
 
 		var parameters = new IssueParamsDto(
-			_subjectName ?? subject.Address,
-			_issuerName ?? issuer.Address,
+			_subjectName ?? subject.PublicKeyString,
+			_issuerName ?? issuer.PublicKeyString,
 			_serial,
-			notBefore,
-			notAfter,
+			notBefore.ToUnixTimeSeconds(),
+			notAfter.ToUnixTimeSeconds(),
 			_isCertificateAuthority,
 			_attributes);
 

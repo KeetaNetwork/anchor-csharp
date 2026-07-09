@@ -73,6 +73,17 @@ public sealed class SharableCertificateAttributes : WasmObject
 		return NullWhenEmpty(value);
 	}
 
+	/// <summary>
+	/// The inlined, digest-verified blob for reference <paramref name="id"/> on
+	/// the disclosed attribute <paramref name="name"/>, or <c>null</c> when the
+	/// attribute, entry, or matching reference node is absent.
+	/// </summary>
+	public byte[]? GetReferenceBlob(string name, string id)
+	{
+		byte[] value = Runtime.SharableReferenceBlob(Handle, name, id);
+		return NullWhenEmpty(value);
+	}
+
 	/// <summary>Map the core's empty not-disclosed sentinel to <c>null</c>.</summary>
 	private static byte[]? NullWhenEmpty(byte[] value)
 	{

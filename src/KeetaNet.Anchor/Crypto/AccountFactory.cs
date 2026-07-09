@@ -19,10 +19,10 @@ public sealed class AccountFactory
 		return new(_runtime, handle);
 	}
 
-	/// <summary>Build a read-only account from its textual <c>keeta_...</c> account string.</summary>
-	public Account FromAccount(string account)
+	/// <summary>Build a read-only account from its textual <c>keeta_...</c> public-key string.</summary>
+	public Account FromPublicKeyString(string publicKeyString)
 	{
-		int handle = _runtime.AccountFromAddress(account);
+		int handle = _runtime.AccountFromAddress(publicKeyString);
 		return new(_runtime, handle);
 	}
 

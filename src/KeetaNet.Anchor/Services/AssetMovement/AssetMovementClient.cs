@@ -46,7 +46,7 @@ public sealed class AssetMovementClient : WasmObject
 	public async Task<AssetProvider?> GetProviderByAccount(
 		Crypto.Account account,
 		CancellationToken cancellationToken = default) =>
-		await GetProviderByAccount(account.Address, cancellationToken).ConfigureAwait(false);
+		await GetProviderByAccount(account.PublicKeyString, cancellationToken).ConfigureAwait(false);
 
 	/// <summary>The provider signed by <paramref name="account"/> (a <c>keeta_</c> public key string), or null when absent.</summary>
 	public async Task<AssetProvider?> GetProviderByAccount(string account, CancellationToken cancellationToken = default)
