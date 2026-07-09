@@ -23,7 +23,7 @@ public sealed class KeetaBlockerException : KeetaException
 	/// <summary>
 	/// Rehydrate a blocker failure from the core's last-error parts, or null
 	/// when <paramref name="code"/> is not a blocker transport code or
-	/// <paramref name="payload"/> does not decode as a blocker.
+	/// <paramref name="payload"/> does not decode as a recognized blocker.
 	/// </summary>
 	internal static KeetaBlockerException? TryDecode(string code, string payload)
 	{
@@ -42,22 +42,25 @@ public sealed class KeetaBlockerException : KeetaException
 			return null;
 		}
 
-		if (blocker is null)
+		if (blocker is null || Describe(blocker) is not { } summary)
 		{
 			return null;
 		}
 
-		return new KeetaBlockerException(code, Describe(blocker), blocker);
+		return new KeetaBlockerException(code, summary, blocker);
 	}
 
-	/// <summary>A human-readable summary of what the user must resolve.</summary>
-	private static string Describe(AssetMovementBlocker blocker) =>
+	/// <summary>
+	/// A human-readable summary of what the user must resolve, or null for a
+	/// shape that does not surface typed.
+	/// </summary>
+	private static string? Describe(AssetMovementBlocker blocker) =>
 		blocker switch
 		{
 			AssetKycShareNeededBlocker => "the provider requires KYC attributes to be shared first",
 			AssetAdditionalKycNeededBlocker => "the provider requires additional KYC steps",
 			AssetOperationNotSupportedBlocker => "the provider does not support this operation",
 			AssetUserActionNeededBlocker => "the provider requires on-ledger user actions",
-			_ => "the provider reported a blocker",
+			_ => null,
 		};
 }
