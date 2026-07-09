@@ -164,8 +164,7 @@ public sealed class KycCertificateBuilder
 	private string? _subjectName;
 	private string? _issuerName;
 	private ulong _serial = 1;
-	private DateTimeOffset? _notBefore;
-	private DateTimeOffset? _notAfter;
+	private (DateTimeOffset NotBefore, DateTimeOffset NotAfter)? _validity;
 	private bool _isCertificateAuthority;
 
 	internal KycCertificateBuilder(WasmRuntime runtime) => _runtime = runtime;
@@ -209,9 +208,7 @@ public sealed class KycCertificateBuilder
 	/// <summary>The validity window. Required, since a component has no clock.</summary>
 	public KycCertificateBuilder Validity(DateTimeOffset notBefore, DateTimeOffset notAfter)
 	{
-		_notBefore = notBefore;
-		_notAfter = notAfter;
-
+		_validity = (notBefore, notAfter);
 		return this;
 	}
 
@@ -262,15 +259,14 @@ public sealed class KycCertificateBuilder
 	{
 		Account subject = _subject ?? throw new InvalidOperationException("a subject account is required to issue a certificate");
 		Account issuer = _issuer ?? throw new InvalidOperationException("an issuer account is required to issue a certificate");
-		long notBefore = _notBefore?.ToUnixTimeSeconds() ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
-		long notAfter = _notAfter?.ToUnixTimeSeconds() ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
+		(DateTimeOffset notBefore, DateTimeOffset notAfter) = _validity ?? throw new InvalidOperationException("a validity window is required to issue a certificate");
 
 		var parameters = new IssueParamsDto(
 			_subjectName ?? subject.PublicKeyString,
 			_issuerName ?? issuer.PublicKeyString,
 			_serial,
-			notBefore,
-			notAfter,
+			notBefore.ToUnixTimeSeconds(),
+			notAfter.ToUnixTimeSeconds(),
 			_isCertificateAuthority,
 			_attributes);
 

@@ -65,9 +65,15 @@ public static class ExternalReferences
 		string url,
 		CancellationToken cancellationToken)
 	{
+		if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? uri)
+			|| (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+		{
+			throw new KeetaException("REFERENCE_FETCH", $"the reference URL `{url}` is not a fetchable http(s) URL");
+		}
+
 		try
 		{
-			return await httpClient.GetAsync(new Uri(url), cancellationToken).ConfigureAwait(false);
+			return await httpClient.GetAsync(uri, cancellationToken).ConfigureAwait(false);
 		}
 		catch (HttpRequestException error)
 		{

@@ -55,6 +55,11 @@ public sealed class SharableReferenceTests : IDisposable
 		Assert.Equal(License, reference.Attribute);
 		Assert.Equal(ReferenceId, reference.Id);
 		Assert.Equal("image/png", reference.ContentType);
+		Assert.Equal("sha3-256", reference.DigestAlgorithm);
+
+		// The discovery walk normalizes the OID the fixture carries to the
+		// symbolic name, as the reference schema does.
+		Assert.Equal("KeetaEncryptedContainerV1", reference.EncryptionAlgorithm);
 
 		var blobs = new Dictionary<string, byte[]> { [reference.Id] = sealedBlob };
 		using SharableCertificateAttributes bundle =
@@ -118,11 +123,19 @@ public sealed class SharableReferenceTests : IDisposable
 		Assert.Null(opened.GetReferenceBlob(License, new string('0', 64)));
 	}
 
-	[Fact]
-	public async Task ADataUrlDecodesWithoutTheNetwork()
+	/// <summary>Both <c>data:</c> URL forms carrying the fixture plaintext: base64 and raw text.</summary>
+	public static TheoryData<string> PlaintextDataUrls => new()
+	{
+		DataUrl(BlobPlaintext),
+		"data:application/octet-string,NOT REALLY A PNG",
+	};
+
+	[Theory]
+	[MemberData(nameof(PlaintextDataUrls))]
+	public async Task ADataUrlDecodesWithoutTheNetwork(string url)
 	{
 		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
-		AttributeReference reference = LicenseReference(DataUrl(BlobPlaintext));
+		AttributeReference reference = LicenseReference(url);
 
 		using var httpClient = new HttpClient();
 		IReadOnlyDictionary<string, byte[]> blobs =
@@ -194,6 +207,47 @@ public sealed class SharableReferenceTests : IDisposable
 		harness.Shutdown();
 
 		Assert.Equal("REFERENCE_FETCH", failure.Code);
+	}
+
+	[Theory]
+	[InlineData("not a url")]
+	[InlineData("ftp://example.test/blob")]
+	[InlineData("http://127.0.0.1:9/refused")]
+	[InlineData("data:application/octet-string")]
+	[InlineData("data:application/octet-string;base64,%%%")]
+	public async Task AnInvalidUrlFailsTheFetchLoud(string url)
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		AttributeReference reference = LicenseReference(url);
+
+		using var httpClient = new HttpClient();
+		KeetaException failure = await Assert.ThrowsAsync<KeetaException>(
+			() => ExternalReferences.FetchBlobs(httpClient, new[] { reference }, cancellationToken));
+
+		Assert.Equal("REFERENCE_FETCH", failure.Code);
+	}
+
+	// A JSON body that is not the exact {data, mimeType} wrapper is the stored
+	// bytes themselves: an array, a two-field object missing mimeType, and a
+	// one-field object all pass through unchanged.
+	[Theory]
+	[InlineData("[1,2,3]")]
+	[InlineData("{\"data\":\"aGk=\",\"size\":2}")]
+	[InlineData("{\"data\":\"aGk=\"}")]
+	public async Task ANonWrapperJsonBodyPassesThroughUnchanged(string body)
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		byte[] stored = Encoding.UTF8.GetBytes(body);
+		using var harness = NodeHarness.Spawn("sharable");
+		AttributeReference reference = LicenseReference(ServeBlob(harness, stored, wrap: false));
+
+		using var httpClient = new HttpClient();
+		IReadOnlyDictionary<string, byte[]> blobs =
+			await ExternalReferences.FetchBlobs(httpClient, new[] { reference }, cancellationToken);
+
+		harness.Shutdown();
+
+		Assert.Equal(stored, blobs[ReferenceId]);
 	}
 
 	[Fact]

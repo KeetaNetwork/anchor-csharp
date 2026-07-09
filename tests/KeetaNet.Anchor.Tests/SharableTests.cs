@@ -61,6 +61,35 @@ public sealed class SharableTests
 		Assert.Equal(recipient.PublicKeyAndType, Convert.ToHexString(principals[0]), ignoreCase: true);
 
 		Assert.Equal(2, opened.GetAttributeNames().Count);
+
+		// The DER container round-trips like the PEM envelope does.
+		byte[] encoded = bundle.Export();
+		using SharableCertificateAttributes reopened = runtime.Sharables.FromEncoded(encoded, new[] { recipient });
+		Assert.Equal(2, reopened.GetAttributeNames().Count);
+	}
+
+	[Fact]
+	public async Task OmittedNamesDiscloseNoAttributes()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var runtime = WasmRuntime.Load();
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, "ecdsa_secp256k1");
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, "ecdsa_secp256k1");
+		using KycCertificate leaf = IssueLeaf(runtime, subject, issuer);
+
+		using SharableCertificateAttributes plain = runtime.Sharables.FromCertificate(leaf, subject);
+		Assert.Empty(plain.GetAttributeNames());
+
+		using SharableCertificateAttributes fromBlobs =
+			runtime.Sharables.FromCertificate(leaf, subject, new Dictionary<string, byte[]>());
+		Assert.Empty(fromBlobs.GetAttributeNames());
+
+		// With nothing named there is nothing to discover, so the one-shot
+		// overload never touches the network.
+		using var httpClient = new HttpClient();
+		using SharableCertificateAttributes fetched = await runtime.Sharables.FromCertificate(
+			leaf, subject, httpClient, cancellationToken: cancellationToken);
+		Assert.Empty(fetched.GetAttributeNames());
 	}
 
 	private static KycCertificate IssueLeaf(WasmRuntime runtime, Account subject, Account issuer)
