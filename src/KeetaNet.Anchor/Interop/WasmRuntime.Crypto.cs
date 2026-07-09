@@ -13,7 +13,8 @@ public sealed partial class WasmRuntime
 	internal int AccountFromSeed(string seed, uint index, string algorithm) =>
 		DerivedAccount("keeta_account_from_seed", seed, index, algorithm);
 
-	internal int AccountFromAddress(string address) => ParseText("keeta_account_from_address", address);
+	internal int AccountFromPublicKeyString(string publicKeyString) =>
+		ParseText("keeta_account_from_public_key_string", publicKeyString);
 
 	internal int AccountFromPrivateKey(string privateKey, string algorithm) =>
 		AccountFromKeyMaterial("keeta_account_from_private_key", privateKey, algorithm);
@@ -66,7 +67,7 @@ public sealed partial class WasmRuntime
 	internal byte[] AccountDecrypt(int handle, byte[] ciphertext) =>
 		WithHandleAndBytes("keeta_account_decrypt", handle, ciphertext);
 
-	internal string AccountAddress(int handle) => TextOf("keeta_account_address", handle);
+	internal string AccountPublicKeyString(int handle) => TextOf("keeta_account_public_key_string", handle);
 
 	internal string AccountAlgorithm(int handle) => TextOf("keeta_account_algorithm", handle);
 

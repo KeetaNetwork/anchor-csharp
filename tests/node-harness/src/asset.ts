@@ -336,6 +336,19 @@ function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: SigningAc
 
 		shareKYC: async function(request) {
 			/*
+			 * A magic attributes string exercises the refusal path: the anchor
+			 * throws the typed KYC-share-needed error, which the server
+			 * serializes into a 403 blocker envelope for a binding to decode.
+			 */
+			if (request.attributes.includes('blocked')) {
+				throw(new assetCommon.Errors.KYCShareNeeded({
+					neededAttributes: ['fullName', 'dateOfBirth'],
+					shareWithPrincipals: [sendToAccount],
+					acceptedIssuers: [[{ name: 'CN', value: 'Anchor Test CA' }]]
+				}));
+			}
+
+			/*
 			 * A magic attributes string exercises the pending path: the anchor
 			 * reports the share pending and hands back a root-relative promise
 			 * URL the client must poll to completion.

@@ -22,7 +22,7 @@ public sealed class AccountFactory
 	/// <summary>Build a read-only account from its textual <c>keeta_...</c> public-key string.</summary>
 	public Account FromPublicKeyString(string publicKeyString)
 	{
-		int handle = _runtime.AccountFromAddress(publicKeyString);
+		int handle = _runtime.AccountFromPublicKeyString(publicKeyString);
 		return new(_runtime, handle);
 	}
 

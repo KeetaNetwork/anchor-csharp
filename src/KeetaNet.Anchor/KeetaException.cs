@@ -2,9 +2,11 @@ namespace KeetaNet.Anchor;
 
 /// <summary>
 /// A failure surfaced from the SDK (the wasm core or the node transport): a
-/// programmatic <see cref="Code"/> plus a human-readable message.
+/// programmatic <see cref="Code"/> plus a human-readable message. Failures
+/// that carry a typed payload derive from it, such as
+/// <see cref="KeetaBlockerException"/>.
 /// </summary>
-public sealed class KeetaException : Exception
+public class KeetaException : Exception
 {
 	/// <summary>The stable, machine-readable error code.</summary>
 	public string Code { get; }
