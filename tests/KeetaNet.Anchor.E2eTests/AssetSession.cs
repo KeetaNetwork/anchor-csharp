@@ -10,8 +10,10 @@ namespace KeetaNet.Anchor.E2eTests;
 internal sealed class AssetSession : IDisposable
 {
 	private readonly NodeHarness _harness;
-	private readonly WasmRuntime _runtime;
 	private readonly Account _signer;
+
+	/// <summary>The runtime the session's client and accounts live in.</summary>
+	public WasmRuntime Runtime { get; }
 
 	public AssetAnchor Anchor { get; }
 	public AssetMovementClient Client { get; }
@@ -26,7 +28,7 @@ internal sealed class AssetSession : IDisposable
 	{
 		_harness = harness;
 		Anchor = anchor;
-		_runtime = runtime;
+		Runtime = runtime;
 		_signer = signer;
 		Client = client;
 		CancellationToken = TestContext.Current.CancellationToken;
@@ -82,7 +84,7 @@ internal sealed class AssetSession : IDisposable
 	{
 		Client.Dispose();
 		_signer.Dispose();
-		_runtime.Dispose();
+		Runtime.Dispose();
 		_harness.Dispose();
 	}
 }

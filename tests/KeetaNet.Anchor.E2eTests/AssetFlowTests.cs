@@ -29,8 +29,12 @@ public sealed class AssetFlowTests
 		Assert.Equal(anchor.ProviderId, provider.Id);
 		Assert.True(client.IsOperationSupported(provider, "simulateTransfer"));
 
-		AssetProvider? byAccount = await client.GetProviderByAccount(anchor.Signer, cancellationToken);
+		// The Account overload resolves the public-key string itself, so one
+		// call covers both lookup forms.
+		using Account metadataSigner = session.Runtime.Accounts.FromPublicKeyString(anchor.Signer);
+		AssetProvider? byAccount = await client.GetProviderByAccount(metadataSigner, cancellationToken);
 		Assert.NotNull(byAccount);
+		Assert.Equal(provider.Id, byAccount!.Id);
 
 		var advertised = new AssetProviderSearch(anchor.Asset, EvmLocation, KeetaLocation);
 		IReadOnlyList<AssetProvider> matches = await client.GetProvidersForTransfer(advertised, cancellationToken);
