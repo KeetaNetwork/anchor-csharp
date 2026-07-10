@@ -287,6 +287,25 @@ public sealed class AssetFlowTests
 		session.Shutdown();
 	}
 
+	[Fact]
+	public async Task ARefusedShareSurfacesTheTypedKycBlocker()
+	{
+		using var session = AssetSession.Open();
+		(AssetMovementClient client, AssetAnchor anchor, CancellationToken cancellationToken) = session;
+		AssetProvider provider = await session.DiscoveredProviderAsync();
+
+		// The anchor refuses the magic attributes with a 403 blocker envelope
+		KeetaBlockerException refusal = await Assert.ThrowsAsync<KeetaBlockerException>(
+			() => client.ShareKycAttributes(provider, new AssetShareKycRequest("blocked"), cancellationToken));
+
+		Assert.Equal("KEETA_ANCHOR_ASSET_MOVEMENT_KYC_SHARE_NEEDED", refusal.Code);
+		var share = Assert.IsType<AssetKycShareNeededBlocker>(refusal.Blocker);
+		Assert.Equal(BlockedAttributes, share.NeededAttributes);
+		Assert.Equal(new[] { anchor.SendToAddress }, share.ShareWithPrincipals);
+
+		session.Shutdown();
+	}
+
 	/// <summary>A push transfer moving the base token from the EVM location to Keeta.</summary>
 	private static AssetTransferRequest PushTransfer(AssetAnchor anchor, object? recipient) =>
 		new(

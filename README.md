@@ -1,4 +1,6 @@
-# anchor-csharp
+# anchor-csharp - BETA
+
+> Warning: This SDK is currently in beta and is subject to change without warning
 
 C# SDK for the KeetaNet anchor. The client logic runs inside a sandboxed WebAssembly core (`keetanetwork_anchor_client_wasi.wasm`, built from [anchor-rs](https://github.com/KeetaNetwork/anchor-rs)) hosted in-process by [Wasmtime](https://github.com/bytecodealliance/wasmtime-dotnet).
 

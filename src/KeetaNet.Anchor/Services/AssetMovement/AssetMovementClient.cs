@@ -80,8 +80,7 @@ public sealed class AssetMovementClient : WasmObject
 
 	/// <summary>
 	/// The provider's advertised legal disclaimers, or null when its metadata
-	/// carries none. Malformed entries are skipped, mirroring the reference
-	/// <c>getLegalDisclaimers</c>.
+	/// carries none. Malformed entries are skipped.
 	/// </summary>
 	public IReadOnlyList<AssetDisclaimer>? GetLegalDisclaimers(AssetProvider provider)
 	{

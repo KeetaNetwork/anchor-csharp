@@ -5,7 +5,7 @@ using Xunit;
 namespace KeetaNet.Anchor.Tests;
 
 /// <summary>
-/// The offline asset-movement model surface: typed blocker decoding from the
+/// Asset-movement model surface: typed blocker decoding from the
 /// core's discriminated account-status shape, typed disclaimer and token
 /// metadata reads, and the canonical asset transport form.
 /// </summary>
@@ -82,8 +82,7 @@ public sealed class AssetModelTests
 		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
 		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
 
-		// One well-formed markdown disclaimer and one with an unknown purpose;
-		// the malformed entry is skipped, mirroring the reference.
+		// One well-formed markdown disclaimer and one with an unknown purpose
 		AssetProvider provider = Provider(legal: """
 		{
 			"disclaimers": [

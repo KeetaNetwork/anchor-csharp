@@ -12,7 +12,7 @@ public sealed class Account : WasmObject
 	}
 
 	/// <summary>The account's textual <c>keeta_...</c> public-key string.</summary>
-	public string PublicKeyString => Runtime.AccountAddress(Handle);
+	public string PublicKeyString => Runtime.AccountPublicKeyString(Handle);
 
 	/// <summary>The account's algorithm name.</summary>
 	public string Algorithm => Runtime.AccountAlgorithm(Handle);

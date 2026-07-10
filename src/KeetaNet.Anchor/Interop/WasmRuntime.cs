@@ -552,7 +552,11 @@ public sealed partial class WasmRuntime : IDisposable
 		}
 	}
 
-	/// <summary>Build an exception from the module's pending <c>code</c>/<c>message</c>.</summary>
+	/// <summary>
+	/// Build an exception from the module's pending <c>code</c>/<c>message</c>.
+	/// An asset-movement blocker code carries the blocker as JSON in the
+	/// message, surfaced typed as a <see cref="KeetaBlockerException"/>.
+	/// </summary>
 	private KeetaException LastError()
 	{
 		string code = ReadErrorPart(_lastErrorCode());
@@ -567,7 +571,7 @@ public sealed partial class WasmRuntime : IDisposable
 			message = "operation failed";
 		}
 
-		return new KeetaException(code, message);
+		return KeetaBlockerException.TryDecode(code, message) ?? new KeetaException(code, message);
 	}
 
 	/// <summary>Read one optional last-error part (an empty string when absent).</summary>

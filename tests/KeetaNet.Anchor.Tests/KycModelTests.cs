@@ -3,8 +3,7 @@ using Xunit;
 namespace KeetaNet.Anchor.Tests;
 
 /// <summary>
-/// The offline KYC model folds, mirroring the reference
-/// <c>getSupportedCountries</c> aggregation cases.
+/// KYC model fold
 /// </summary>
 public sealed class KycModelTests
 {
