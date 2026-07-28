@@ -156,6 +156,102 @@ public sealed class AssetModelTests
 		Assert.Equal(pair, JsonSerializer.Deserialize<AssetOrPair>("""{"from":"USD","to":"evm:0x5"}""", KeetaJson.Options));
 	}
 
+	[Fact]
+	public void ForwardingAddressesDecodeTheirTypedFeeAndMinimumShapes()
+	{
+		// The shape the core serializes for one listed address: typed fees,
+		// a minimum transfer value, and raw locations that stay opaque.
+		string payload = """
+		{
+			"id": "address-1",
+			"address": "keeta_destination",
+			"asset": { "from": "USD", "to": "evm:0x5" },
+			"sourceLocation": "bank-account:us",
+			"destinationLocation": "chain:keeta:100",
+			"outgoingRail": "KEETA_SEND",
+			"incomingRail": ["ACH_DEBIT"],
+			"minimumTransferValue": { "asset": "USD", "value": "500" },
+			"fees": {
+				"lineItems": [
+					{ "purpose": "FIXED", "value": "5", "asset": "USD" },
+					{ "purpose": "VALUE_VARIABLE", "basisPoints": 50, "asset": { "id": "evm:0x5", "location": "chain:evm:100" } }
+				],
+				"total": "10",
+				"totalPricedIn": "USD"
+			}
+		}
+		""";
+
+		AssetForwardingAddress address = JsonSerializer.Deserialize<AssetForwardingAddress>(payload, KeetaJson.Options)!;
+		Assert.Equal("address-1", address.Id);
+		Assert.Equal("keeta_destination", address.Address.GetString());
+		Assert.Equal(AssetOrPair.Pair("USD", "evm:0x5"), address.Asset);
+		Assert.Equal("KEETA_SEND", address.OutgoingRail);
+		Assert.Equal("ACH_DEBIT", Assert.Single(address.IncomingRail!));
+		Assert.Equal("USD", address.MinimumTransferValue!.Asset);
+		Assert.Equal("500", address.MinimumTransferValue.Value);
+
+		Assert.Equal("10", address.Fees!.Total);
+		Assert.Equal(new AssetOrAssetWithLocation("USD"), address.Fees.TotalPricedIn);
+		Assert.Equal(2, address.Fees.LineItems.Count);
+		Assert.Equal("5", address.Fees.LineItems[0].Value);
+		Assert.Null(address.Fees.LineItems[0].BasisPoints);
+		Assert.Equal(50d, address.Fees.LineItems[1].BasisPoints);
+		Assert.Equal(new AssetOrAssetWithLocation("evm:0x5", "chain:evm:100"), address.Fees.LineItems[1].Asset);
+	}
+
+	// A bare id crosses as a string, a located one as { id, location },
+	// exactly the reference AssetOrAssetWithLocation union.
+	[Theory]
+	[InlineData("USD", null, "\"USD\"")]
+	[InlineData("evm:0x5", "chain:evm:100", """{"id":"evm:0x5","location":"chain:evm:100"}""")]
+	public void LocatedAssetsRoundTripTheirCanonicalTransportForms(string id, string? location, string transport)
+	{
+		var asset = new AssetOrAssetWithLocation(id, location);
+
+		Assert.Equal(transport, JsonSerializer.Serialize(asset, KeetaJson.Options));
+		Assert.Equal(asset, JsonSerializer.Deserialize<AssetOrAssetWithLocation>(transport, KeetaJson.Options));
+	}
+
+	[Fact]
+	public void AnchorDetailsDecodeAndDropAMalformedDescription()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
+
+		AssetProvider provider = Provider(legal: """
+		{
+			"anchorDetails": {
+				"name": "Anchor Under Test",
+				"description": { "type": "plaintext", "content": "plain words" },
+				"logo": "https://logo.test/a.svg"
+			}
+		}
+		""");
+
+		AssetAnchorDetails? details = client.GetProviderAnchorDetails(provider);
+		Assert.NotNull(details);
+		Assert.Equal("Anchor Under Test", details!.Name);
+		Assert.Equal(AssetContentType.Plaintext, details.Description!.Type);
+		Assert.Equal("plain words", details.Description.Content);
+		Assert.Equal("https://logo.test/a.svg", details.Logo);
+
+		// A malformed description drops while the identifying fields survive.
+		AssetProvider malformed = Provider(legal: """
+		{ "anchorDetails": { "name": "Partial", "description": { "type": "unknown-kind", "content": 5 } } }
+		""");
+		AssetAnchorDetails? partial = client.GetProviderAnchorDetails(malformed);
+		Assert.NotNull(partial);
+		Assert.Equal("Partial", partial!.Name);
+		Assert.Null(partial.Description);
+		Assert.Null(partial.Logo);
+
+		// Legal metadata without anchor details reports none.
+		Assert.Null(client.GetProviderAnchorDetails(Provider(legal: """{ "disclaimers": [] }""")));
+		Assert.Null(client.GetProviderAnchorDetails(Provider(legal: null)));
+	}
+
 	/// <summary>A minimal provider carrying only the polymorphic metadata under test.</summary>
 	private static AssetProvider Provider(string? legal = null, string? locationMetadata = null)
 	{

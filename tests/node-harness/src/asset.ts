@@ -159,6 +159,11 @@ function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: SigningAc
 		authenticationRequired: true,
 
 		legal: {
+			anchorDetails: {
+				name: 'Test Anchor',
+				description: { type: 'markdown', content: 'A reference anchor for interop tests.' },
+				logo: 'https://anchor.test/logo.svg'
+			},
 			disclaimers: [
 				{
 					purpose: 'general',
@@ -320,7 +325,18 @@ function assetCallbacks(baseTokenAccount: TokenAccount, sendToAccount: SigningAc
 						sourceLocation: 'chain:evm:100',
 						destinationLocation: 'chain:keeta:100',
 						destinationAddress: sendToAddress,
-						id: 'template-id'
+						id: 'template-id',
+						minimumTransferValue: { asset: baseToken, value: '500' },
+						fees: {
+							lineItems: [
+								{
+									purpose: 'VALUE_VARIABLE',
+									basisPoints: 50,
+									details: { type: 'markdown', content: 'Variable fee of 50 basis points' }
+								}
+							],
+							total: '10'
+						}
 					}
 				],
 				total: '1'
