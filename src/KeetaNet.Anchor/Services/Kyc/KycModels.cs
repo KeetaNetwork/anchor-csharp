@@ -10,9 +10,14 @@ public sealed record KycOperations(
 	string? CheckLocality,
 	string? GetEstimate);
 
-/// <summary>A KYC provider discovered from on-chain service metadata.</summary>
+/// <summary>
+/// A KYC provider's advertised metadata, discovered from on-chain service
+/// metadata (the reference <c>KycProviderInfo</c>). Operations live on the
+/// <see cref="KycProvider"/> handle bound through
+/// <see cref="KycClient.Provider"/>.
+/// </summary>
 /// <remarks><see cref="CountryCodes"/> is null for a worldwide provider.</remarks>
-public sealed record KycProvider(
+public sealed record KycProviderInfo(
 	string Id,
 	string Ca,
 	KycOperations Operations,
@@ -27,10 +32,10 @@ public sealed record KycProvider(
 public sealed record SupportedCountries(bool Worldwide, IReadOnlyList<string> Countries)
 {
 	/// <summary>Fold discovered <paramref name="providers"/> into their aggregate coverage.</summary>
-	public static SupportedCountries FromProviders(IEnumerable<KycProvider> providers)
+	public static SupportedCountries FromProviders(IEnumerable<KycProviderInfo> providers)
 	{
 		var countries = new List<string>();
-		foreach (KycProvider provider in providers)
+		foreach (KycProviderInfo provider in providers)
 		{
 			if (provider.CountryCodes is null)
 			{
