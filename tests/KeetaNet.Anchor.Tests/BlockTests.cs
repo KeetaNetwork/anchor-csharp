@@ -235,6 +235,19 @@ public sealed class BlockTests
 		KeetaException refused = await Assert.ThrowsAsync<KeetaException>(
 			() => readOnly.Transmit(block, options, TestContext.Current.CancellationToken));
 		Assert.Equal("SIGNER_REQUIRED", refused.Code);
+
+		// Publish takes a caller-built builder, so its gate must refuse
+		using var external = runtime.Blocks.NewBuilder();
+		external
+			.WithVersion(2)
+			.WithNetwork(Network)
+			.WithAccount(sender)
+			.WithSigner(sender)
+			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000));
+
+		KeetaException refusedPublish = await Assert.ThrowsAsync<KeetaException>(
+			() => readOnly.Publish(external, options, TestContext.Current.CancellationToken));
+		Assert.Equal("SIGNER_REQUIRED", refusedPublish.Code);
 	}
 
 	[Fact]
