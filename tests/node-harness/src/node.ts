@@ -98,7 +98,8 @@ async function handleStartNode(): Promise<HarnessResponse> {
 		event: 'node-started',
 		api: chain.api,
 		baseToken: chain.repClient.baseToken.publicKeyString.get(),
-		representative: chain.repClient.account.publicKeyString.get()
+		representative: chain.repClient.account.publicKeyString.get(),
+		network: chain.node.config.network.toString()
 	});
 }
 
