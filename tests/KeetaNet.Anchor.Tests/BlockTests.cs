@@ -204,6 +204,40 @@ public sealed class BlockTests
 	}
 
 	[Fact]
+	public async Task TransmitRefusesAReadOnlyUserClientEvenWithAFeeFactory()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account sender = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account recipient = runtime.Accounts.FromSeed(TestSeeds.Recipient, 0, TestSeeds.DefaultAlgorithm);
+		using Account token = runtime.Blocks.NetworkBaseToken(Network);
+
+		using BlockOperation send = runtime.Blocks.Send(recipient, 42, token);
+		using var builder = runtime.Blocks.NewBuilder();
+		builder
+			.WithVersion(2)
+			.WithNetwork(Network)
+			.WithAccount(sender)
+			.WithSigner(sender)
+			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000))
+			.AsOpening()
+			.AddOperation(send);
+		using Block block = builder.Build();
+
+		// A custom fee-block factory bypasses the default fee-payer branch,
+		// so the signer gate itself must refuse the prebuilt block.
+		var options = new TransmitOptions
+		{
+			FeeBlockFactory = (_, _, _, _) => Task.FromResult<Block?>(null),
+		};
+
+		using UserClient readOnly = runtime.CreateUserClient(
+			TestSeeds.NonRoutableAnchor, signer: null, network: Network, account: sender);
+		KeetaException refused = await Assert.ThrowsAsync<KeetaException>(
+			() => readOnly.Transmit(block, options, TestContext.Current.CancellationToken));
+		Assert.Equal("SIGNER_REQUIRED", refused.Code);
+	}
+
+	[Fact]
 	public void TheBaseTokenDerivesDeterministicallyFromTheNetwork()
 	{
 		using var runtime = WasmRuntime.Load();
