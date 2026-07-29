@@ -14,9 +14,59 @@ public sealed partial class WasmRuntime
 
 	internal string BlockHashHex(int handle) => TextOf("keeta_block_hash", handle);
 
+	internal string BlockToHex(int handle) => TextOf("keeta_block_to_hex", handle);
+
 	internal byte[] BlockToBytes(int handle) => BytesOf("keeta_block_to_bytes", handle);
 
+	internal int BlockAccount(int handle) =>
+		Run(() => TakeHandle(Invoke<int, int>("keeta_block_account", handle)));
+
 	internal void BlockFree(int handle) => RunFree("keeta_block_free", handle);
+
+	internal int PermissionsFromFlags(string flagsJoined, byte[] offsets) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument flags = arguments.Write(flagsJoined);
+			Argument external = arguments.WriteBytes(offsets);
+
+			int result = Invoke<int, int, int, int, int>(
+				"keeta_permissions_from_flags", flags.Pointer, flags.Length, external.Pointer, external.Length);
+			return TakeHandle(result);
+		});
+
+	internal int PermissionsFromBitmaps(string baseHex, string externalHex) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument baseMap = arguments.Write(baseHex);
+			Argument externalMap = arguments.Write(externalHex);
+
+			int result = Invoke<int, int, int, int, int>(
+				"keeta_permissions_from_bitmaps", baseMap.Pointer, baseMap.Length, externalMap.Pointer, externalMap.Length);
+			return TakeHandle(result);
+		});
+
+	internal string PermissionsFlags(int handle) => TextOf("keeta_permissions_flags", handle);
+
+	internal byte[] PermissionsOffsets(int handle) => BytesOf("keeta_permissions_offsets", handle);
+
+	internal string PermissionsBitmaps(int handle) => TextOf("keeta_permissions_bitmaps", handle);
+
+	internal void PermissionsFree(int handle) => RunFree("keeta_permissions_free", handle);
+
+	internal int GenerateIdentifier(int account, string kind, byte[] previous, int index) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument name = arguments.Write(kind);
+			Argument previousHash = arguments.WriteBytes(previous);
+
+			int result = Invoke<int, int, int, int, int, int, int>(
+				"keeta_generate_identifier",
+				account, name.Pointer, name.Length, previousHash.Pointer, previousHash.Length, index);
+			return TakeHandle(result);
+		});
 
 	internal int OpSetRep(int to) =>
 		Run(() =>
@@ -34,6 +84,71 @@ public sealed partial class WasmRuntime
 
 			int result = Invoke<int, int, int, int, int, int, int>(
 				"keeta_op_send", to, value.Pointer, value.Length, token, reference.Pointer, reference.Length);
+			return TakeHandle(result);
+		});
+
+	internal int OpReceive(int from, string amount, int token, bool exact, int forward) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument value = arguments.Write(amount);
+
+			int result = Invoke<int, int, int, int, int, int, int>(
+				"keeta_op_receive", from, value.Pointer, value.Length, token, exact ? 1 : 0, forward);
+			return TakeHandle(result);
+		});
+
+	internal int OpSetInfo(string name, string description, string metadata, int permissions) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument accountName = arguments.Write(name);
+			Argument accountDescription = arguments.Write(description);
+			Argument accountMetadata = arguments.Write(metadata);
+
+			int result = Invoke<int, int, int, int, int, int, int, int>(
+				"keeta_op_set_info",
+				accountName.Pointer, accountName.Length,
+				accountDescription.Pointer, accountDescription.Length,
+				accountMetadata.Pointer, accountMetadata.Length,
+				permissions);
+			return TakeHandle(result);
+		});
+
+	internal int OpModifyPermissions(int principal, int permissions, string method, int target) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument adjust = arguments.Write(method);
+
+			int result = Invoke<int, int, int, int, int, int>(
+				"keeta_op_modify_permissions", principal, permissions, adjust.Pointer, adjust.Length, target);
+			return TakeHandle(result);
+		});
+
+	internal int OpTokenAdminSupply(string amount, string method) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument value = arguments.Write(amount);
+			Argument adjust = arguments.Write(method);
+
+			int result = Invoke<int, int, int, int, int>(
+				"keeta_op_token_admin_supply", value.Pointer, value.Length, adjust.Pointer, adjust.Length);
+			return TakeHandle(result);
+		});
+
+	internal int OpCreateIdentifier(int identifier) =>
+		Run(() => TakeHandle(Invoke<int, int>("keeta_op_create_identifier", identifier)));
+
+	internal int OpCreateMultisig(int multisig, int[] signers, int quorum) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument signerList = arguments.WriteHandles(signers);
+
+			int result = Invoke<int, int, int, int, int>(
+				"keeta_op_create_multisig", multisig, signerList.Pointer, signerList.Length, quorum);
 			return TakeHandle(result);
 		});
 

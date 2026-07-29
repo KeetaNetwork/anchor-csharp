@@ -36,5 +36,18 @@ public sealed class Account : WasmObject
 	/// <summary>Decrypt <paramref name="ciphertext"/> with the account's private key.</summary>
 	public byte[] Decrypt(byte[] ciphertext) => Runtime.AccountDecrypt(Handle, ciphertext);
 
+	/// <summary>
+	/// Derive the <paramref name="kind"/> identifier account this account claims
+	/// at block <paramref name="previous"/> (its opening block when omitted) and
+	/// operation <paramref name="index"/>. The caller owns the returned handle.
+	/// </summary>
+	public Account GenerateIdentifier(IdentifierKind kind, BlockHash? previous = null, int index = 0)
+	{
+		byte[] hash = previous?.ToBytes() ?? Array.Empty<byte>();
+		int handle = Runtime.GenerateIdentifier(Handle, CoreNames.Of(kind), hash, index);
+
+		return new Account(Runtime, handle);
+	}
+
 	private protected override void Release(WasmRuntime runtime, int handle) => runtime.AccountFree(handle);
 }
