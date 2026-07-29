@@ -24,6 +24,9 @@ public sealed partial class WasmRuntime
 	/// <summary>Creates and opens selectively disclosed attribute bundles.</summary>
 	public SharableCertificateAttributesFactory Sharables { get; }
 
+	/// <summary>Creates block builders, ledger operations, and parsed blocks.</summary>
+	public BlockFactory Blocks { get; }
+
 	/// <summary>
 	/// Create a KYC anchor client signed by <paramref name="account"/>, resolving
 	/// providers from <paramref name="root"/>'s on-chain service metadata read via
@@ -41,11 +44,13 @@ public sealed partial class WasmRuntime
 		AssetMovementClient.WithAccount(this, nodeUrl, root, account);
 
 	/// <summary>
-	/// Create a lite, read-only client for the node API at
-	/// <paramref name="nodeUrl"/>. An injected <paramref name="httpClient"/>
-	/// (for example from <c>IHttpClientFactory</c>) is borrowed, not disposed.
-	/// Absent one the client owns its own.
+	/// Create a lite client for the node API at <paramref name="nodeUrl"/>. An
+	/// injected <paramref name="httpClient"/> (for example from
+	/// <c>IHttpClientFactory</c>) is borrowed, not disposed. Absent one the
+	/// client owns its own. Binding <paramref name="network"/> enables the
+	/// write path (<see cref="NodeClient.Transmit(Crypto.Block, TransmitOptions?, CancellationToken)"/>
+	/// and fee blocks). A client without one stays read-only.
 	/// </summary>
-	public NodeClient CreateNodeClient(string nodeUrl, HttpClient? httpClient = null) =>
-		new(this, nodeUrl, httpClient);
+	public NodeClient CreateNodeClient(string nodeUrl, HttpClient? httpClient = null, long? network = null) =>
+		new(this, nodeUrl, httpClient, network);
 }

@@ -16,6 +16,9 @@ namespace KeetaNet.Anchor;
 /// </summary>
 public sealed class NodeClient : IDisposable
 {
+	/// <summary>The block version the reference clients build.</summary>
+	private const int BlockVersion = 2;
+
 	private readonly WasmRuntime _runtime;
 
 	/// <summary>The client-owned transport. Null when an injected one is borrowed.</summary>
@@ -23,14 +26,26 @@ public sealed class NodeClient : IDisposable
 
 	private readonly NodeApi _api;
 
+	private readonly long? _network;
+
+	/// <summary>The network's base token; derived only when a network is bound.</summary>
+	private readonly Crypto.Account? _baseToken;
+
 	/// <summary>
 	/// A client for the node API at <paramref name="nodeUrl"/>. An injected
 	/// <paramref name="http"/> (for example from <c>IHttpClientFactory</c>) is
-	/// borrowed, not disposed.
+	/// borrowed, not disposed. A bound <paramref name="network"/> enables the
+	/// write path; without one the client stays read-only.
 	/// </summary>
-	internal NodeClient(WasmRuntime runtime, string nodeUrl, HttpClient? http = null)
+	internal NodeClient(WasmRuntime runtime, string nodeUrl, HttpClient? http = null, long? network = null)
 	{
 		_runtime = runtime;
+		_network = network;
+		if (network is { } bound)
+		{
+			_baseToken = runtime.Blocks.NetworkBaseToken(bound);
+		}
+
 		if (http is null)
 		{
 			_ownedHttp = new HttpClient();
@@ -39,6 +54,15 @@ public sealed class NodeClient : IDisposable
 
 		_api = new NodeApi(http) { BaseUrl = nodeUrl };
 	}
+
+	/// <summary>The bound network id, or null for a read-only client.</summary>
+	public long? Network => _network;
+
+	/// <summary>
+	/// The bound network's base token (the implicit fee currency), or null for
+	/// a read-only client. Owned by this client; do not dispose it.
+	/// </summary>
+	public Crypto.Account? BaseToken => _baseToken;
 
 	/// <summary>The node software version string.</summary>
 	public async Task<string> GetNodeVersion(CancellationToken cancellationToken = default)
@@ -162,6 +186,120 @@ public sealed class NodeClient : IDisposable
 		return OptionalHexAmount(response.Balance) ?? BigInteger.Zero;
 	}
 
+	/// <summary>Publish one signed block as its own staple. See the list overload.</summary>
+	public Task<bool> Transmit(
+		Crypto.Block block,
+		TransmitOptions? options = null,
+		CancellationToken cancellationToken = default) =>
+		Transmit(new[] { block }, options, cancellationToken);
+
+	/// <summary>
+	/// Publish <paramref name="blocks"/> as one atomic staple, the port of the
+	/// reference two-round transmit. When the temporary round's votes require
+	/// a fee, the factory in <paramref name="options"/> is invoked with that
+	/// round and its block joins the permanent round and the staple.
+	/// </summary>
+	public async Task<bool> Transmit(
+		IReadOnlyList<Crypto.Block> blocks,
+		TransmitOptions? options = null,
+		CancellationToken cancellationToken = default)
+	{
+		TransmitOptions resolved = options ?? new TransmitOptions();
+		List<string> encoded = blocks.Select(EncodeBlock).ToList();
+		string temporary = await RequestVote(encoded, priorVote: null, cancellationToken).ConfigureAwait(false);
+
+		Crypto.Block? feeBlock = null;
+		try
+		{
+			if (VoteRequiresFee(temporary))
+			{
+				feeBlock = await FeeBlockFor(blocks, temporary, resolved, cancellationToken).ConfigureAwait(false);
+			}
+
+			IReadOnlyList<Crypto.Block> all = blocks;
+			if (feeBlock is not null)
+			{
+				// The fee block joins the permanent round last. The node
+				// recognizes it by its FEE purpose and escalates the temporary
+				// votes over the original blocks.
+				all = blocks.Append(feeBlock).ToArray();
+				encoded.Add(EncodeBlock(feeBlock));
+			}
+
+			string permanent = await RequestVote(encoded, temporary, cancellationToken).ConfigureAwait(false);
+			return await PublishStaple(all, permanent, cancellationToken).ConfigureAwait(false);
+		}
+		finally
+		{
+			feeBlock?.Dispose();
+		}
+	}
+
+	/// <summary>
+	/// Build and sign the fee block <paramref name="staple"/>'s votes require:
+	/// <paramref name="account"/>'s balance pays, <paramref name="signer"/>
+	/// signs (distinct under delegated signing). Chains atop the account's
+	/// block in the staple, else its ledger head, so the payer need not appear
+	/// in the round. Null when no fee is owed. Requires a bound network.
+	/// </summary>
+	public async Task<Crypto.Block?> BuildFeeBlock(
+		Crypto.VoteStaple staple,
+		Crypto.Account account,
+		Crypto.Account signer,
+		IReadOnlyList<Crypto.Account>? feeTokenPriority = null,
+		CancellationToken cancellationToken = default)
+	{
+		(long network, Crypto.Account baseToken) = RequireNetwork();
+
+		int[] feeOps = _runtime.StapleFeeSends(staple.Handle, baseToken.Handle, Crypto.Handles.Of(feeTokenPriority));
+		if (feeOps.Length == 0)
+		{
+			return null;
+		}
+
+		// Adopt every operation handle up front so a failure anywhere below
+		// releases them all.
+		var feeOperations = new List<Crypto.BlockOperation>(feeOps.Length);
+		foreach (int handle in feeOps)
+		{
+			feeOperations.Add(new Crypto.BlockOperation(_runtime, handle));
+		}
+
+		try
+		{
+			string? previous = _runtime.StapleTipFor(staple.Handle, account.Handle);
+			if (previous is null)
+			{
+				AccountState state = await GetAccountState(account, cancellationToken).ConfigureAwait(false);
+				previous = state.HeadBlock?.ToString();
+			}
+
+			using var builder = _runtime.Blocks.NewBuilder();
+			builder
+				.WithVersion(BlockVersion)
+				.WithNetwork(network)
+				.WithAccount(account)
+				.WithSigner(signer)
+				.WithPurpose(Crypto.BlockPurpose.Fee)
+				.WithDate(DateTimeOffset.UtcNow);
+			PositionAfter(builder, previous);
+
+			foreach (Crypto.BlockOperation feeOp in feeOperations)
+			{
+				builder.AddOperation(feeOp);
+			}
+
+			return builder.Build();
+		}
+		finally
+		{
+			foreach (Crypto.BlockOperation feeOp in feeOperations)
+			{
+				feeOp.Dispose();
+			}
+		}
+	}
+
 	/// <summary>
 	/// Every certificate <paramref name="account"/> has published on-chain, each
 	/// with the intermediates recorded alongside it. An account with no published
@@ -244,8 +382,144 @@ public sealed class NodeClient : IDisposable
 		return CertificateChainStatus.Untrusted;
 	}
 
-	/// <summary>Release the HTTP resources the client owns. An injected <see cref="HttpClient"/> is left alone.</summary>
-	public void Dispose() => _ownedHttp?.Dispose();
+	/// <summary>
+	/// Release the resources the client owns: its base token account and, when
+	/// not injected, its <see cref="HttpClient"/>.
+	/// </summary>
+	public void Dispose()
+	{
+		_baseToken?.Dispose();
+		_ownedHttp?.Dispose();
+	}
+
+	/// <summary>The bound network and its base token, required by the write path.</summary>
+	private (long Network, Crypto.Account BaseToken) RequireNetwork()
+	{
+		if (_network is not { } network || _baseToken is null)
+		{
+			throw new KeetaException("NETWORK_REQUIRED", "bind a network id when creating the node client to build or transmit blocks");
+		}
+
+		return (network, _baseToken);
+	}
+
+	/// <summary>A block's transport bytes in the base64 form the vote endpoint carries.</summary>
+	private static string EncodeBlock(Crypto.Block block) => Convert.ToBase64String(block.ToBytes());
+
+	/// <summary>
+	/// Request one vote over <paramref name="blocksBase64"/>. Round one leaves
+	/// <paramref name="priorVote"/> null so the body omits <c>votes</c> entirely.
+	/// Round two attaches the temporary vote so the representative escalates it.
+	/// </summary>
+	private async Task<string> RequestVote(
+		IReadOnlyList<string> blocksBase64,
+		string? priorVote,
+		CancellationToken cancellationToken)
+	{
+		var body = new Body { Blocks = blocksBase64.ToList() };
+		if (priorVote is not null)
+		{
+			body.Votes = new List<string> { priorVote };
+		}
+
+		CreateVoteResponse response = await Attempt(() => _api.CreateVoteAsync(body, cancellationToken)).ConfigureAwait(false);
+		string? vote = response.Vote?.Binary;
+		if (string.IsNullOrEmpty(vote))
+		{
+			throw new KeetaException("VOTE_DECLINED", "the node returned no vote");
+		}
+
+		return vote;
+	}
+
+	/// <summary>Materialize a base64 vote from the vote endpoint.</summary>
+	private Crypto.Vote DecodeVote(string voteBase64) =>
+		new(_runtime, _runtime.VoteFromBytes(Convert.FromBase64String(voteBase64)));
+
+	/// <summary>Whether the base64 vote obliges a fee block.</summary>
+	private bool VoteRequiresFee(string voteBase64)
+	{
+		using Crypto.Vote vote = DecodeVote(voteBase64);
+		return vote.RequiresFee;
+	}
+
+	/// <summary>
+	/// Produce the fee block the temporary round requires through the
+	/// caller's factory, handing it the validated staple over
+	/// <paramref name="blocks"/> and <paramref name="temporaryVote"/>.
+	/// </summary>
+	private async Task<Crypto.Block> FeeBlockFor(
+		IReadOnlyList<Crypto.Block> blocks,
+		string temporaryVote,
+		TransmitOptions options,
+		CancellationToken cancellationToken)
+	{
+		if (options.FeeBlockFactory is not { } factory)
+		{
+			throw new KeetaException("FEE_REQUIRED", "the votes require a fee but no fee-block factory is set");
+		}
+
+		IReadOnlyList<Crypto.Account> priority = options.FeeTokenPriority.ToArray();
+		using Crypto.VoteStaple staple = StapleFor(blocks, temporaryVote);
+		Crypto.Block? feeBlock = await factory(this, staple, priority, cancellationToken).ConfigureAwait(false);
+		if (feeBlock is null)
+		{
+			throw new KeetaException("FEE_REQUIRED", "the votes require a fee but the fee-block factory produced none");
+		}
+
+		return feeBlock;
+	}
+
+	/// <summary>
+	/// A validated staple over <paramref name="blocks"/> and the base64 vote
+	/// endorsing them, enforcing the staple invariants.
+	/// </summary>
+	private Crypto.VoteStaple StapleFor(IReadOnlyList<Crypto.Block> blocks, string voteBase64)
+	{
+		using Crypto.Vote vote = DecodeVote(voteBase64);
+		int[] blockHandles = blocks.Select(block => block.Handle).ToArray();
+		long moment = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+		return new Crypto.VoteStaple(_runtime, _runtime.VoteStapleNew(blockHandles, new[] { vote.Handle }, moment));
+	}
+
+	/// <summary>Assemble the staple over <paramref name="blocks"/> plus the permanent vote, and post it.</summary>
+	private async Task<bool> PublishStaple(
+		IReadOnlyList<Crypto.Block> blocks,
+		string permanentVoteBase64,
+		CancellationToken cancellationToken)
+	{
+		byte[] stapleBytes;
+		using (Crypto.Vote vote = DecodeVote(permanentVoteBase64))
+		{
+			int[] blockHandles = blocks.Select(block => block.Handle).ToArray();
+			long moment = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+			stapleBytes = _runtime.VoteStapleBuild(blockHandles, new[] { vote.Handle }, moment);
+		}
+
+		var body = new Body3 { VotesAndBlocks = Convert.ToBase64String(stapleBytes) };
+		await Attempt(() => _api.PublishVoteStapleAsync(body, cancellationToken)).ConfigureAwait(false);
+
+		// A fulfilled publish means the node accepted the staple. Its
+		// `publish` flag only reports whether the node also voted on it, so
+		// the reference clients ignore it and so do we.
+		return true;
+	}
+
+	/// <summary>
+	/// Position <paramref name="builder"/> atop <paramref name="previous"/>, or
+	/// as an opening block when the account has no chain yet.
+	/// </summary>
+	private static void PositionAfter(Crypto.BlockBuilder builder, string? previous)
+	{
+		if (string.IsNullOrEmpty(previous))
+		{
+			builder.AsOpening();
+			return;
+		}
+
+		builder.WithPrevious(Crypto.BlockHash.Parse(previous));
+	}
 
 	/// <summary>
 	/// Whether one published record chains to a trusted issuer at the moment.

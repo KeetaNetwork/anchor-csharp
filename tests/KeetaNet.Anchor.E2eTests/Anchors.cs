@@ -63,13 +63,15 @@ internal sealed class LedgerNode
 	public string Api { get; }
 	public string BaseToken { get; }
 	public string Representative { get; }
+	public long Network { get; }
 
-	private LedgerNode(NodeHarness harness, string api, string baseToken, string representative)
+	private LedgerNode(NodeHarness harness, string api, string baseToken, string representative, long network)
 	{
 		_harness = harness;
 		Api = api;
 		BaseToken = baseToken;
 		Representative = representative;
+		Network = network;
 	}
 
 	/// <summary>Boot the reference node with an initialized chain.</summary>
@@ -81,7 +83,8 @@ internal sealed class LedgerNode
 			harness,
 			started.GetProperty("api").GetString()!,
 			started.GetProperty("baseToken").GetString()!,
-			started.GetProperty("representative").GetString()!);
+			started.GetProperty("representative").GetString()!,
+			long.Parse(started.GetProperty("network").GetString()!, System.Globalization.CultureInfo.InvariantCulture));
 	}
 
 	/// <summary>Fund the seed-derived account, returning its address.</summary>

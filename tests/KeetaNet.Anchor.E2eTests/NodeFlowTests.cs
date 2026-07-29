@@ -74,6 +74,7 @@ public sealed class NodeFlowTests
 		// The state's head must be the exact head hash the reference client
 		// reports, and the height must reflect the two published blocks.
 		Assert.NotNull(state.HeadBlock);
+
 		string? head = node.Head(holder.PublicKeyString);
 		Assert.NotNull(head);
 		Assert.Equal(BlockHash.Parse(head!), state.HeadBlock!.Value);
@@ -122,6 +123,142 @@ public sealed class NodeFlowTests
 		Assert.NotNull(failure.InnerException);
 
 		harness.Shutdown();
+	}
+
+	/// <summary>The flat base-token fee the harness chain charges per vote round.</summary>
+	private static readonly BigInteger RoundFee = BigInteger.One;
+
+	[Fact]
+	public async Task FeeBearingSendTransmitsAgainstTheLiveNode()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("node");
+		LedgerNode node = LedgerNode.Start(harness);
+
+		using var runtime = WasmRuntime.Load();
+		using NodeClient client = runtime.CreateNodeClient(node.Api, network: node.Network);
+
+		// Both sides must derive the same base token from the network id.
+		Assert.NotNull(client.BaseToken);
+		Assert.Equal(node.BaseToken, client.BaseToken!.PublicKeyString);
+
+		using Account holder = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account recipient = runtime.Accounts.FromSeed(E2eSeeds.Recipient, 0, E2eSeeds.Secp256k1);
+		node.Fund(E2eSeeds.Subject, Funding);
+
+		// The temporary round demands a fee; the holder pays it, and the node
+		// accepts the staple.
+		const long Amount = 12_345;
+		using (Block send = BuildSend(runtime, client, holder, recipient, Amount, previous: null))
+		{
+			bool accepted = await client.Transmit(send, TransmitOptions.WithFeeSigner(holder), cancellationToken);
+			Assert.True(accepted);
+		}
+
+		// The recipient gains exactly the amount; the holder also paid the
+		// round's flat fee.
+		BigInteger credited = await client.GetAccountBalance(recipient, client.BaseToken, cancellationToken);
+		Assert.Equal(new BigInteger(Amount), credited);
+
+		BigInteger remaining = await client.GetAccountBalance(holder, client.BaseToken, cancellationToken);
+		Assert.Equal(new BigInteger(Funding) - Amount - RoundFee, remaining);
+
+		// The fee block chained atop the send, so the holder's head advanced
+		// past the send block and must match the reference client's.
+		AccountState state = await client.GetAccountState(holder, cancellationToken);
+		Assert.NotNull(state.HeadBlock);
+
+		string? referenceHead = node.Head(holder.PublicKeyString);
+		Assert.NotNull(referenceHead);
+		Assert.Equal(BlockHash.Parse(referenceHead!), state.HeadBlock!.Value);
+
+		// A chained SET_REP delegates the holder's weight; the round costs
+		// one more flat fee and the ledger reflects the delegation.
+		using (BlockOperation toRep = runtime.Blocks.SetRep(recipient))
+		using (Block setRep = BuildBlock(runtime, client, holder, state.HeadBlock, toRep))
+		{
+			Assert.True(await client.Transmit(setRep, TransmitOptions.WithFeeSigner(holder), cancellationToken));
+		}
+
+		state = await client.GetAccountState(holder, cancellationToken);
+		Assert.Equal(recipient.PublicKeyString, state.Representative!.PublicKeyString);
+		remaining -= RoundFee;
+		Assert.Equal(remaining, await client.GetAccountBalance(holder, client.BaseToken, cancellationToken));
+
+		// A fee-less transmit against the fee-enforcing node refuses with the
+		// typed FEE_REQUIRED before anything is published. The refusal leaves
+		// the representative's temporary vote behind, blocking the holder's
+		// height for the rest of the test - each refusal rides its own account.
+		using (Block feeless = BuildSend(runtime, client, holder, recipient, Amount, state.HeadBlock))
+		{
+			KeetaException refused = await Assert.ThrowsAsync<KeetaException>(
+				() => client.Transmit(feeless, cancellationToken: cancellationToken));
+			Assert.Equal("FEE_REQUIRED", refused.Code);
+		}
+
+		// A client without a bound network cannot originate the fee block the
+		// round demands, so its transmit refuses before publishing anything.
+		using NodeClient readOnly = runtime.CreateNodeClient(node.Api);
+		Assert.Null(readOnly.BaseToken);
+
+		using (Block opening = BuildSend(runtime, client, recipient, holder, 1, previous: null))
+		{
+			KeetaException unbound = await Assert.ThrowsAsync<KeetaException>(
+				() => readOnly.Transmit(opening, TransmitOptions.WithFeeSigner(recipient), cancellationToken));
+			Assert.Equal("NETWORK_REQUIRED", unbound.Code);
+		}
+
+		// Neither refusal advanced either chain.
+		Assert.Equal(remaining, await client.GetAccountBalance(holder, client.BaseToken, cancellationToken));
+		Assert.Equal(new BigInteger(Amount), await client.GetAccountBalance(recipient, client.BaseToken, cancellationToken));
+
+		harness.Shutdown();
+	}
+
+	/// <summary>A signed base-token send from <paramref name="from"/> to <paramref name="to"/>.</summary>
+	private static Block BuildSend(
+		WasmRuntime runtime,
+		NodeClient client,
+		Account from,
+		Account to,
+		long amount,
+		BlockHash? previous)
+	{
+		using BlockOperation send = runtime.Blocks.Send(to, amount, client.BaseToken!);
+		return BuildBlock(runtime, client, from, previous, send);
+	}
+
+	/// <summary>
+	/// A signed one-operation block for <paramref name="account"/>, opening its
+	/// chain when <paramref name="previous"/> is null and chaining atop it
+	/// otherwise.
+	/// </summary>
+	private static Block BuildBlock(
+		WasmRuntime runtime,
+		NodeClient client,
+		Account account,
+		BlockHash? previous,
+		BlockOperation operation)
+	{
+		using BlockBuilder builder = runtime.Blocks.NewBuilder();
+		builder
+			.WithVersion(2)
+			.WithNetwork(client.Network!.Value)
+			.WithAccount(account)
+			.WithSigner(account)
+			.WithDate(DateTimeOffset.UtcNow)
+			.AddOperation(operation);
+
+		if (previous is { } hash)
+		{
+			builder.WithPrevious(hash);
+		}
+		else
+		{
+			builder.AsOpening();
+		}
+
+		return builder.Build();
 	}
 
 	/// <summary>

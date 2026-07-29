@@ -59,6 +59,7 @@ public sealed partial class WasmRuntime : IDisposable
 		KycCertificates = new Crypto.KycCertificateFactory(this);
 		Containers = new Crypto.EncryptedContainerFactory(this);
 		Sharables = new Crypto.SharableCertificateAttributesFactory(this);
+		Blocks = new Crypto.BlockFactory(this);
 
 		_dispatcher = new WasmDispatcher();
 		try
