@@ -106,6 +106,44 @@ public sealed class AssetMovementClient : WasmObject
 	}
 
 	/// <summary>
+	/// The provider's identifying details published under
+	/// <c>legal.anchorDetails</c>, or null when its metadata carries none. A
+	/// malformed description is dropped while the name and logo are kept.
+	/// </summary>
+	public AssetAnchorDetails? GetProviderAnchorDetails(AssetProvider provider)
+	{
+		if (provider.Legal is not { } legal
+			|| legal.ValueKind != JsonValueKind.Object
+			|| !legal.TryGetProperty("anchorDetails", out JsonElement details)
+			|| details.ValueKind != JsonValueKind.Object)
+		{
+			return null;
+		}
+
+		string? name = ReadOptionalString(details, "name");
+		string? logo = ReadOptionalString(details, "logo");
+
+		AssetRenderableContent? description = null;
+		if (details.TryGetProperty("description", out JsonElement rawDescription))
+		{
+			TryDeserialize(rawDescription, out description);
+		}
+
+		return new AssetAnchorDetails(name, description, logo);
+	}
+
+	/// <summary>The member's string value, or null when absent or not a string.</summary>
+	private static string? ReadOptionalString(JsonElement element, string name)
+	{
+		if (!element.TryGetProperty(name, out JsonElement found) || found.ValueKind != JsonValueKind.String)
+		{
+			return null;
+		}
+
+		return found.GetString();
+	}
+
+	/// <summary>
 	/// The legal disclaimers advertised by the provider with
 	/// <paramref name="id"/>, or null when the provider or its disclaimers are
 	/// absent.
@@ -236,11 +274,11 @@ public sealed class AssetMovementClient : WasmObject
 		ReadOperationAsync<AssetTemplatePage>(Runtime.AssetListForwardingAddressTemplates, provider, request, cancellationToken);
 
 	/// <summary>Create a persistent-forwarding address, returning its (obfuscated) details.</summary>
-	public Task<JsonElement> CreatePersistentForwardingAddress(
+	public Task<AssetForwardingAddress> CreatePersistentForwardingAddress(
 		AssetProvider provider,
 		AssetCreateAddressRequest request,
 		CancellationToken cancellationToken = default) =>
-		ReadOperationAsync<JsonElement>(Runtime.AssetCreatePersistentForwardingAddress, provider, request, cancellationToken);
+		ReadOperationAsync<AssetForwardingAddress>(Runtime.AssetCreatePersistentForwardingAddress, provider, request, cancellationToken);
 
 	/// <summary>List persistent-forwarding addresses.</summary>
 	public Task<AssetAddressPage> ListForwardingAddresses(

@@ -96,11 +96,15 @@ public sealed record AssetCreateAddressRequest(
 	object? DestinationAddress = null,
 	string? PersistentAddressTemplateId = null);
 
-/// <summary>One filter over persistent-forwarding addresses.</summary>
+/// <summary>
+/// One filter over persistent-forwarding addresses. <see cref="Asset"/> is a
+/// single canonical asset or a <c>{ from, to }</c> conversion pair, matching
+/// <see cref="AssetProviderSearch.Asset"/>.
+/// </summary>
 public sealed record AssetAddressFilter(
 	string? SourceLocation = null,
 	string? DestinationLocation = null,
-	string? Asset = null,
+	AssetOrPair? Asset = null,
 	string? DestinationAddress = null,
 	string? PersistentAddressTemplateId = null);
 
@@ -161,8 +165,104 @@ public sealed record AssetForwardingTemplate(string Id, JsonElement Location, Js
 /// <summary>A page of persistent-forwarding templates.</summary>
 public sealed record AssetTemplatePage(IReadOnlyList<JsonElement> Templates, string Total);
 
+/// <summary>
+/// A canonical asset id, or an id located at a canonical location (the
+/// reference <c>AssetOrAssetWithLocation</c>). A bare id crosses the wire as a
+/// string, a located id as <c>{ id, location }</c>.
+/// </summary>
+[JsonConverter(typeof(AssetOrAssetWithLocationConverter))]
+public sealed record AssetOrAssetWithLocation(string Id, string? Location = null);
+
+/// <summary>
+/// Reads and writes the reference wire form: a bare id string when
+/// <see cref="AssetOrAssetWithLocation.Location"/> is absent, otherwise an
+/// <c>{ id, location }</c> object.
+/// </summary>
+internal sealed class AssetOrAssetWithLocationConverter : JsonConverter<AssetOrAssetWithLocation>
+{
+	public override AssetOrAssetWithLocation Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+	{
+		if (reader.TokenType == JsonTokenType.String)
+		{
+			return new AssetOrAssetWithLocation(reader.GetString() ?? "");
+		}
+
+		using var document = JsonDocument.ParseValue(ref reader);
+		JsonElement element = document.RootElement;
+		if (!element.TryGetProperty("id", out JsonElement id)
+			|| !element.TryGetProperty("location", out JsonElement location)
+			|| id.ValueKind != JsonValueKind.String
+			|| location.ValueKind != JsonValueKind.String)
+		{
+			throw new JsonException("a located asset requires string 'id' and 'location' members");
+		}
+
+		return new AssetOrAssetWithLocation(id.GetString()!, location.GetString());
+	}
+
+	public override void Write(Utf8JsonWriter writer, AssetOrAssetWithLocation value, JsonSerializerOptions options)
+	{
+		if (value.Location is null)
+		{
+			writer.WriteStringValue(value.Id);
+			return;
+		}
+
+		writer.WriteStartObject();
+		writer.WriteString("id", value.Id);
+		writer.WriteString("location", value.Location);
+		writer.WriteEndObject();
+	}
+}
+
+/// <summary>
+/// One fee line item in a breakdown (the reference resolved/unresolved fee
+/// line-item union flattened): a fixed fee carries <see cref="Value"/>, an
+/// unresolved variable fee carries <see cref="BasisPoints"/>, a resolved
+/// variable fee carries both.
+/// </summary>
+public sealed record AssetFeeLineItem(
+	string Purpose,
+	string? Value = null,
+	double? BasisPoints = null,
+	AssetOrAssetWithLocation? Asset = null,
+	AssetRenderableContent? Details = null);
+
+/// <summary>
+/// A fee breakdown: its line items, with an optional pre-computed total. An
+/// unset <see cref="Total"/> is the sum of the line items; an unset
+/// <see cref="TotalPricedIn"/> is the transferred asset.
+/// </summary>
+public sealed record AssetFeeBreakdown(
+	IReadOnlyList<AssetFeeLineItem> LineItems,
+	string? Total = null,
+	AssetOrAssetWithLocation? TotalPricedIn = null);
+
+/// <summary>The smallest transfer a persistent-forwarding address accepts.</summary>
+public sealed record AssetMinimumTransferValue(string Asset, string Value);
+
+/// <summary>
+/// One persistent-forwarding address (the reference
+/// <c>KeetaPersistentForwardingAddressDetails</c>). <see cref="Address"/> and
+/// the location/destination members stay raw JSON: each is resolved or
+/// obfuscated at the provider's discretion; decode a resolved address with
+/// <see cref="AssetAddress.Parse"/>.
+/// </summary>
+public sealed record AssetForwardingAddress(
+	JsonElement Address,
+	string? Id = null,
+	JsonElement? DepositMessage = null,
+	AssetOrPair? Asset = null,
+	JsonElement? SourceLocation = null,
+	JsonElement? DestinationLocation = null,
+	JsonElement? DestinationAddress = null,
+	string? OutgoingRail = null,
+	IReadOnlyList<string>? IncomingRail = null,
+	AssetMinimumTransferValue? MinimumTransferValue = null,
+	AssetFeeBreakdown? Fees = null);
+
 /// <summary>A page of persistent-forwarding addresses.</summary>
-public sealed record AssetAddressPage(IReadOnlyList<JsonElement> Addresses, string Total);
+public sealed record AssetAddressPage(IReadOnlyList<AssetForwardingAddress> Addresses, string Total);
 
 /// <summary>A page of asset-movement transactions.</summary>
 public sealed record AssetTransactionPage(IReadOnlyList<JsonElement> Transactions, string Total);
@@ -203,6 +303,16 @@ public sealed record AssetRenderableContent(AssetContentType Type, string Conten
 
 /// <summary>One legal disclaimer a provider publishes under its <c>legal</c> metadata.</summary>
 public sealed record AssetDisclaimer(AssetDisclaimerPurpose Purpose, AssetRenderableContent Content);
+
+/// <summary>
+/// The identifying details a provider publishes under
+/// <c>legal.anchorDetails</c> (the reference
+/// <c>AnchorMetadataLegalAnchorDetails</c>).
+/// </summary>
+public sealed record AssetAnchorDetails(
+	string? Name = null,
+	AssetRenderableContent? Description = null,
+	string? Logo = null);
 
 /// <summary>
 /// The token metadata a provider advertises for one asset at one location

@@ -158,6 +158,15 @@ public sealed class AssetFlowTests
 		// not an error.
 		Assert.Null(client.GetAssetMetadataForLocation(provider, EvmLocation, "evm:0xdeadbeef"));
 
+		// The identifying details under legal.anchorDetails decode typed.
+		AssetAnchorDetails? details = client.GetProviderAnchorDetails(provider);
+		Assert.NotNull(details);
+		Assert.Equal("Test Anchor", details!.Name);
+		Assert.NotNull(details.Description);
+		Assert.Equal(AssetContentType.Markdown, details.Description!.Type);
+		Assert.Equal("A reference anchor for interop tests.", details.Description.Content);
+		Assert.Equal("https://anchor.test/logo.svg", details.Logo);
+
 		session.Shutdown();
 	}
 
@@ -196,7 +205,7 @@ public sealed class AssetFlowTests
 		Assert.Single(templates.Templates);
 		Assert.Equal("1", templates.Total);
 
-		JsonElement created = await client.CreatePersistentForwardingAddress(
+		AssetForwardingAddress created = await client.CreatePersistentForwardingAddress(
 			provider,
 			new AssetCreateAddressRequest(
 				EvmLocation,
@@ -205,14 +214,22 @@ public sealed class AssetFlowTests
 				DestinationLocation: KeetaLocation,
 				DestinationAddress: anchor.SendToAddress),
 			cancellationToken);
-		Assert.Equal(anchor.SendToAddress, created.GetProperty("address").GetString());
-		Assert.Equal("10", created.GetProperty("fees").GetProperty("total").GetString());
+		Assert.Equal(anchor.SendToAddress, created.Address.GetString());
 
-		JsonElement fromTemplate = await client.CreatePersistentForwardingAddress(
+		// The fee breakdown decodes typed: one variable line item carrying its
+		// basis points and renderable details, plus the pre-computed total.
+		Assert.NotNull(created.Fees);
+		Assert.Equal("10", created.Fees!.Total);
+		AssetFeeLineItem lineItem = Assert.Single(created.Fees.LineItems);
+		Assert.Equal("VALUE_VARIABLE", lineItem.Purpose);
+		Assert.Equal(50d, lineItem.BasisPoints);
+		Assert.Equal(AssetContentType.Markdown, lineItem.Details!.Type);
+
+		AssetForwardingAddress fromTemplate = await client.CreatePersistentForwardingAddress(
 			provider,
 			new AssetCreateAddressRequest(EvmLocation, anchor.Asset, PersistentAddressTemplateId: template.Id),
 			cancellationToken);
-		Assert.Equal(anchor.SendToAddress, fromTemplate.GetProperty("address").GetString());
+		Assert.Equal(anchor.SendToAddress, fromTemplate.Address.GetString());
 
 		AssetAddressPage addresses = await client.ListForwardingAddresses(
 			provider,
@@ -220,8 +237,27 @@ public sealed class AssetFlowTests
 				new[] { new AssetAddressFilter(SourceLocation: EvmLocation, Asset: anchor.Asset) },
 				new AssetPagination(10, 0)),
 			cancellationToken);
-		Assert.Single(addresses.Addresses);
+		AssetForwardingAddress listed = Assert.Single(addresses.Addresses);
 		Assert.Equal("1", addresses.Total);
+		Assert.Equal("template-id", listed.Id);
+		Assert.Equal(anchor.SendToAddress, listed.Address.GetString());
+		Assert.Equal(anchor.Asset, listed.Asset?.Asset);
+		Assert.Equal(EvmLocation, listed.SourceLocation?.GetString());
+		Assert.Equal(KeetaLocation, listed.DestinationLocation?.GetString());
+		Assert.NotNull(listed.MinimumTransferValue);
+		Assert.Equal("500", listed.MinimumTransferValue!.Value);
+		Assert.NotNull(listed.Fees);
+		Assert.Equal("10", listed.Fees!.Total);
+
+		// A conversion-pair filter crosses the wire in the reference `{ from,
+		// to }` form and passes the live anchor's request validation.
+		AssetAddressPage paired = await client.ListForwardingAddresses(
+			provider,
+			new AssetListAddressesRequest(
+				new[] { new AssetAddressFilter(SourceLocation: EvmLocation, Asset: AssetOrPair.Pair(anchor.Asset, "USD")) },
+				new AssetPagination(10, 0)),
+			cancellationToken);
+		Assert.Single(paired.Addresses);
 
 		AssetTransactionPage transactions = await client.ListTransactions(
 			provider,

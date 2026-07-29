@@ -43,7 +43,7 @@ public sealed class NodeClient : IDisposable
 	/// <summary>The node software version string.</summary>
 	public async Task<string> GetNodeVersion(CancellationToken cancellationToken = default)
 	{
-		Response4 response = await Attempt(() => _api.GetNodeVersionAsync(cancellationToken)).ConfigureAwait(false);
+		GetNodeVersionResponse response = await Attempt(() => _api.GetNodeVersionAsync(cancellationToken)).ConfigureAwait(false);
 		return response.Node ?? "";
 	}
 
@@ -55,7 +55,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account account,
 		CancellationToken cancellationToken = default)
 	{
-		Response5 state = await Attempt(() => _api.GetAccountStateAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		GetAccountStateResponse state = await Attempt(() => _api.GetAccountStateAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return DecodeState(state.CurrentHeadBlock, state.CurrentHeadBlockHeight, state.Representative, state.Info, state.Balances);
 	}
 
@@ -68,7 +68,7 @@ public sealed class NodeClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		string joined = string.Join(",", accounts.Select(account => account.PublicKeyString));
-		ICollection<Anonymous> states = await Attempt(() => _api.GetAccountStatesAsync(joined, cancellationToken)).ConfigureAwait(false);
+		ICollection<GetAccountStatesResponseItem> states = await Attempt(() => _api.GetAccountStatesAsync(joined, cancellationToken)).ConfigureAwait(false);
 
 		return states
 			.Select(item => DecodeState(item.CurrentHeadBlock, item.CurrentHeadBlockHeight, item.Representative, item.Info, item.Balances))
@@ -90,7 +90,7 @@ public sealed class NodeClient : IDisposable
 	/// <summary>The point-in-time XOR checksum of the node's ledger.</summary>
 	public async Task<LedgerChecksum> GetLedgerChecksum(CancellationToken cancellationToken = default)
 	{
-		Response12 checksum = await Attempt(() => _api.GetLedgerChecksumAsync(cancellationToken)).ConfigureAwait(false);
+		GetLedgerChecksumResponse checksum = await Attempt(() => _api.GetLedgerChecksumAsync(cancellationToken)).ConfigureAwait(false);
 
 		DateTimeOffset? moment = null;
 		if (!string.IsNullOrEmpty(checksum.Moment))
@@ -123,7 +123,7 @@ public sealed class NodeClient : IDisposable
 	/// <summary>Every representative the node knows, with advertised endpoints.</summary>
 	public async Task<IReadOnlyList<NodeRepresentative>> GetAllRepresentatives(CancellationToken cancellationToken = default)
 	{
-		Response13 response = await Attempt(() => _api.GetAllRepresentativesAsync(cancellationToken)).ConfigureAwait(false);
+		GetAllRepresentativesResponse response = await Attempt(() => _api.GetAllRepresentativesAsync(cancellationToken)).ConfigureAwait(false);
 		ICollection<GeneratedRepresentative> representatives = response.Representatives ?? Array.Empty<GeneratedRepresentative>();
 
 		return representatives.Select(DecodeRepresentative).ToArray();
@@ -148,7 +148,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account account,
 		CancellationToken cancellationToken = default)
 	{
-		Response6 response = await Attempt(() => _api.GetAccountBalancesAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		GetAccountBalancesResponse response = await Attempt(() => _api.GetAccountBalancesAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return DecodeBalances(response.Balances);
 	}
 
@@ -158,7 +158,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account token,
 		CancellationToken cancellationToken = default)
 	{
-		Response7 response = await Attempt(() => _api.GetAccountBalanceAsync(account.PublicKeyString, token.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		GetAccountBalanceResponse response = await Attempt(() => _api.GetAccountBalanceAsync(account.PublicKeyString, token.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return OptionalHexAmount(response.Balance) ?? BigInteger.Zero;
 	}
 
@@ -171,7 +171,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.Account account,
 		CancellationToken cancellationToken = default)
 	{
-		Response19 response = await Attempt(() => _api.GetAccountCertificatesAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		GetAccountCertificatesResponse response = await Attempt(() => _api.GetAccountCertificatesAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		ICollection<GeneratedCertificate> records = response.Certificates ?? Array.Empty<GeneratedCertificate>();
 
 		// A record with no certificate body is the node's "not found" shape.
@@ -192,7 +192,7 @@ public sealed class NodeClient : IDisposable
 		Crypto.CertificateHash certificateHash,
 		CancellationToken cancellationToken = default)
 	{
-		Response20 record = await Attempt(() => _api.GetCertificateByHashAsync(account.PublicKeyString, certificateHash.ToString(), cancellationToken)).ConfigureAwait(false);
+		GetCertificateByHashResponse record = await Attempt(() => _api.GetCertificateByHashAsync(account.PublicKeyString, certificateHash.ToString(), cancellationToken)).ConfigureAwait(false);
 		if (record.Certificate1 is null)
 		{
 			return null;

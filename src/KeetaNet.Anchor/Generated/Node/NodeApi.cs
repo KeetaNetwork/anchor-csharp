@@ -81,7 +81,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </remarks>
         /// <returns>Vote created successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response> CreateVoteAsync(Body body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<CreateVoteResponse> CreateVoteAsync(Body body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -129,7 +129,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<CreateVoteResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -175,7 +175,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </remarks>
         /// <returns>Quote created successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response2> CreateVoteQuoteAsync(Body2 body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<CreateVoteQuoteResponse> CreateVoteQuoteAsync(Body2 body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -223,7 +223,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response2>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<CreateVoteQuoteResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -271,7 +271,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="side">Which ledger storage to read votes from (defaults to main).</param>
         /// <returns>Votes retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response3> GetBlockVotesAsync(string blockhash, Side? side = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetBlockVotesResponse> GetBlockVotesAsync(string blockhash, Side? side = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (blockhash == null)
                 throw new System.ArgumentNullException("blockhash");
@@ -322,7 +322,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response3>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetBlockVotesResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -368,7 +368,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </remarks>
         /// <returns>Version retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response4> GetNodeVersionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetNodeVersionResponse> GetNodeVersionAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -409,7 +409,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response4>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetNodeVersionResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -456,7 +456,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="account">Account public key</param>
         /// <returns>Account state retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response5> GetAccountStateAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountStateResponse> GetAccountStateAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -501,7 +501,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response5>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountStateResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -548,7 +548,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="account">Account public key</param>
         /// <returns>Balances retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response6> GetAccountBalancesAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountBalancesResponse> GetAccountBalancesAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -594,7 +594,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response6>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountBalancesResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -642,7 +642,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="token">Token account address</param>
         /// <returns>Balance retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response7> GetAccountBalanceAsync(string account, string token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountBalanceResponse> GetAccountBalanceAsync(string account, string token, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -692,7 +692,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response7>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountBalanceResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -739,7 +739,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="account">Account public key</param>
         /// <returns>Head block retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response8> GetAccountHeadAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountHeadResponse> GetAccountHeadAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -785,7 +785,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response8>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountHeadResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -832,7 +832,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="account">Account public key</param>
         /// <returns>Pending block retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response9> GetPendingBlockAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetPendingBlockResponse> GetPendingBlockAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -878,7 +878,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response9>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetPendingBlockResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -926,7 +926,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="side">Which ledger storage to read from (defaults to main).</param>
         /// <returns>Block retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response10> GetBlockAsync(string blockhash, Side2? side = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetBlockResponse> GetBlockAsync(string blockhash, Side2? side = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (blockhash == null)
                 throw new System.ArgumentNullException("blockhash");
@@ -977,7 +977,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response10>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetBlockResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1024,7 +1024,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="blockhash">64-character hexadecimal block hash</param>
         /// <returns>Successor block retrieved successfully</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response11> GetSuccessorBlockAsync(string blockhash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetSuccessorBlockResponse> GetSuccessorBlockAsync(string blockhash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (blockhash == null)
                 throw new System.ArgumentNullException("blockhash");
@@ -1070,7 +1070,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response11>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetSuccessorBlockResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1281,7 +1281,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>Checksum</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response12> GetLedgerChecksumAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetLedgerChecksumResponse> GetLedgerChecksumAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -1322,7 +1322,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response12>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetLedgerChecksumResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1537,7 +1537,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>Representatives</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response13> GetAllRepresentativesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAllRepresentativesResponse> GetAllRepresentativesAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -1578,7 +1578,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response13>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAllRepresentativesResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1621,7 +1621,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>History</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response14> GetGlobalHistoryAsync(string start = null, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetGlobalHistoryResponse> GetGlobalHistoryAsync(string start = null, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -1672,7 +1672,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response14>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetGlobalHistoryResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1715,7 +1715,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>Chain</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response15> GetAccountChainAsync(string account, string start = null, string end = null, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountChainResponse> GetAccountChainAsync(string account, string start = null, string end = null, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -1775,7 +1775,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response15>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountChainResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1818,7 +1818,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>History</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response16> GetAccountHistoryAsync(string account, string start = null, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountHistoryResponse> GetAccountHistoryAsync(string account, string start = null, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -1874,7 +1874,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response16>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountHistoryResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -1917,7 +1917,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>ACLs</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response17> ListAclsByPrincipalAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<ListAclsByPrincipalResponse> ListAclsByPrincipalAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -1963,7 +1963,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response17>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<ListAclsByPrincipalResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2006,7 +2006,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>ACLs</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response18> ListAclsByEntityAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<ListAclsByEntityResponse> ListAclsByEntityAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -2052,7 +2052,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response18>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<ListAclsByEntityResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2184,7 +2184,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>Certificates</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response19> GetAccountCertificatesAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetAccountCertificatesResponse> GetAccountCertificatesAsync(string account, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -2230,7 +2230,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response19>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetAccountCertificatesResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2273,7 +2273,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>Certificate</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response20> GetCertificateByHashAsync(string account, string certificateHash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetCertificateByHashResponse> GetCertificateByHashAsync(string account, string certificateHash, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -2323,7 +2323,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response20>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetCertificateByHashResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2367,7 +2367,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="side">Which ledger storage to search (defaults to main).</param>
         /// <returns>Block</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response21> GetBlockFromIdempotentAsync(string account, string idempotent, Side3? side = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetBlockFromIdempotentResponse> GetBlockFromIdempotentAsync(string account, string idempotent, Side3? side = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (account == null)
                 throw new System.ArgumentNullException("account");
@@ -2423,7 +2423,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response21>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetBlockFromIdempotentResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2467,7 +2467,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// <param name="accounts">Comma-separated account public keys</param>
         /// <returns>Account states</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<Anonymous>> GetAccountStatesAsync(string accounts, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<System.Collections.Generic.ICollection<GetAccountStatesResponseItem>> GetAccountStatesAsync(string accounts, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (accounts == null)
                 throw new System.ArgumentNullException("accounts");
@@ -2512,7 +2512,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<System.Collections.Generic.ICollection<Anonymous>>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<System.Collections.Generic.ICollection<GetAccountStatesResponseItem>>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2555,7 +2555,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </summary>
         /// <returns>Vote staples</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response22> GetVoteStaplesAfterAsync(string start, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<GetVoteStaplesAfterResponse> GetVoteStaplesAfterAsync(string start, int? limit = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (start == null)
                 throw new System.ArgumentNullException("start");
@@ -2606,7 +2606,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response22>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<GetVoteStaplesAfterResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -2652,7 +2652,7 @@ namespace KeetaNet.Anchor.Generated.Node
         /// </remarks>
         /// <returns>Publish result</returns>
         /// <exception cref="NodeApiException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<Response23> PublishVoteStapleAsync(Body3 body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<PublishVoteStapleResponse> PublishVoteStapleAsync(Body3 body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (body == null)
                 throw new System.ArgumentNullException("body");
@@ -2700,7 +2700,7 @@ namespace KeetaNet.Anchor.Generated.Node
                         var status_ = (int)response_.StatusCode;
                         if (status_ == 200)
                         {
-                            var objectResponse_ = await ReadObjectResponseAsync<Response23>(response_, headers_, cancellationToken).ConfigureAwait(false);
+                            var objectResponse_ = await ReadObjectResponseAsync<PublishVoteStapleResponse>(response_, headers_, cancellationToken).ConfigureAwait(false);
                             if (objectResponse_.Object == null)
                             {
                                 throw new NodeApiException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
@@ -3253,6 +3253,543 @@ namespace KeetaNet.Anchor.Generated.Node
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record CreateVoteResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("vote")]
+        public Vote Vote { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record CreateVoteQuoteResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("quote")]
+        public VoteQuote Quote { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetBlockVotesResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("blockhash")]
+        public string Blockhash { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("votes")]
+        public System.Collections.Generic.ICollection<Vote> Votes { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetNodeVersionResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("node")]
+        public string Node { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountStateResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        /// <summary>
+        /// Head block hash as hexadecimal
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlock")]
+        public string CurrentHeadBlock { get; set; }
+
+        /// <summary>
+        /// Head block height as a 0x-prefixed hexadecimal BigInt
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlockHeight")]
+        public string CurrentHeadBlockHeight { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("representative")]
+        public string Representative { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("info")]
+        public AccountInfo Info { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("balances")]
+        public System.Collections.Generic.ICollection<BalanceEntry> Balances { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountStatesResponseItem
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlock")]
+        public string CurrentHeadBlock { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlockHeight")]
+        public string CurrentHeadBlockHeight { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("representative")]
+        public string Representative { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("info")]
+        public AccountInfo Info { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("balances")]
+        public System.Collections.Generic.ICollection<BalanceEntry> Balances { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountBalancesResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("balances")]
+        public System.Collections.Generic.ICollection<BalanceEntry> Balances { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountBalanceResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("token")]
+        public string Token { get; set; }
+
+        /// <summary>
+        /// Settled balance as a 0x-prefixed hexadecimal BigInt
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("balance")]
+        public string Balance { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountHeadResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("block")]
+        public Block Block { get; set; }
+
+        /// <summary>
+        /// Head block height as a 0x-prefixed hexadecimal BigInt
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("height")]
+        public string Height { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetPendingBlockResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("block")]
+        public Block Block { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetBlockResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("blockhash")]
+        public string Blockhash { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("block")]
+        public Block Block { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetSuccessorBlockResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("blockhash")]
+        public string Blockhash { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("successorBlock")]
+        public Block SuccessorBlock { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetBlockFromIdempotentResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("block")]
+        public Block Block { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetLedgerChecksumResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("moment")]
+        public string Moment { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("momentRange")]
+        public double MomentRange { get; set; }
+
+        /// <summary>
+        /// Checksum as a 0x-prefixed hexadecimal BigInt
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("checksum")]
+        public string Checksum { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAllRepresentativesResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("representatives")]
+        public System.Collections.Generic.ICollection<Representative> Representatives { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetGlobalHistoryResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("history")]
+        public System.Collections.Generic.ICollection<HistoryEntry> History { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nextKey")]
+        public string NextKey { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountChainResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("blocks")]
+        public System.Collections.Generic.ICollection<GetAccountChainResponseBlocksItem> Blocks { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nextKey")]
+        public string NextKey { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountChainResponseBlocksItem
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("block")]
+        public Block Block { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountHistoryResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("history")]
+        public System.Collections.Generic.ICollection<HistoryEntry> History { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("nextKey")]
+        public string NextKey { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record ListAclsByPrincipalResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("permissions")]
+        public System.Collections.Generic.ICollection<ACLRow> Permissions { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record ListAclsByEntityResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("permissions")]
+        public System.Collections.Generic.ICollection<ACLRow> Permissions { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetAccountCertificatesResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("certificates")]
+        public System.Collections.Generic.ICollection<Certificate> Certificates { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetCertificateByHashResponse : Certificate
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("account")]
+        public string Account { get; set; }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record GetVoteStaplesAfterResponse
+    {
+
+        [System.Text.Json.Serialization.JsonPropertyName("voteStaples")]
+        public System.Collections.Generic.ICollection<VoteStaple> VoteStaples { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial record PublishVoteStapleResponse
+    {
+
+        /// <summary>
+        /// Whether the vote staple was successfully published
+        /// </summary>
+        [System.Text.Json.Serialization.JsonPropertyName("publish")]
+        public bool Publish { get; set; }
+
+        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
+
+        [System.Text.Json.Serialization.JsonExtensionData]
+        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
+        {
+            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
+            set { _additionalProperties = value; }
+        }
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial record Body
     {
 
@@ -3373,525 +3910,6 @@ namespace KeetaNet.Anchor.Generated.Node
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("vote")]
-        public Vote Vote { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response2
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("quote")]
-        public VoteQuote Quote { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response3
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("blockhash")]
-        public string Blockhash { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("votes")]
-        public System.Collections.Generic.ICollection<Vote> Votes { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response4
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("node")]
-        public string Node { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response5
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        /// <summary>
-        /// Head block hash as hexadecimal
-        /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlock")]
-        public string CurrentHeadBlock { get; set; }
-
-        /// <summary>
-        /// Head block height as a 0x-prefixed hexadecimal BigInt
-        /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlockHeight")]
-        public string CurrentHeadBlockHeight { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("representative")]
-        public string Representative { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("info")]
-        public AccountInfo Info { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("balances")]
-        public System.Collections.Generic.ICollection<BalanceEntry> Balances { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response6
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("balances")]
-        public System.Collections.Generic.ICollection<BalanceEntry> Balances { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response7
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("token")]
-        public string Token { get; set; }
-
-        /// <summary>
-        /// Settled balance as a 0x-prefixed hexadecimal BigInt
-        /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("balance")]
-        public string Balance { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response8
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("block")]
-        public Block Block { get; set; }
-
-        /// <summary>
-        /// Head block height as a 0x-prefixed hexadecimal BigInt
-        /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("height")]
-        public string Height { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response9
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("block")]
-        public Block Block { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response10
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("blockhash")]
-        public string Blockhash { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("block")]
-        public Block Block { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response11
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("blockhash")]
-        public string Blockhash { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("successorBlock")]
-        public Block SuccessorBlock { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response12
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("moment")]
-        public string Moment { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("momentRange")]
-        public double MomentRange { get; set; }
-
-        /// <summary>
-        /// Checksum as a 0x-prefixed hexadecimal BigInt
-        /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("checksum")]
-        public string Checksum { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response13
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("representatives")]
-        public System.Collections.Generic.ICollection<Representative> Representatives { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response14
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("history")]
-        public System.Collections.Generic.ICollection<HistoryEntry> History { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("nextKey")]
-        public string NextKey { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response15
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("blocks")]
-        public System.Collections.Generic.ICollection<Blocks> Blocks { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("nextKey")]
-        public string NextKey { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response16
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("history")]
-        public System.Collections.Generic.ICollection<HistoryEntry> History { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("nextKey")]
-        public string NextKey { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response17
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("permissions")]
-        public System.Collections.Generic.ICollection<ACLRow> Permissions { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response18
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("permissions")]
-        public System.Collections.Generic.ICollection<ACLRow> Permissions { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response19
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("certificates")]
-        public System.Collections.Generic.ICollection<Certificate> Certificates { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response20 : Certificate
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response21
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("block")]
-        public Block Block { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Anonymous
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("account")]
-        public string Account { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlock")]
-        public string CurrentHeadBlock { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("currentHeadBlockHeight")]
-        public string CurrentHeadBlockHeight { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("representative")]
-        public string Representative { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("info")]
-        public AccountInfo Info { get; set; }
-
-        [System.Text.Json.Serialization.JsonPropertyName("balances")]
-        public System.Collections.Generic.ICollection<BalanceEntry> Balances { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response22
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("voteStaples")]
-        public System.Collections.Generic.ICollection<VoteStaple> VoteStaples { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Response23
-    {
-
-        /// <summary>
-        /// Whether the vote staple was successfully published
-        /// </summary>
-        [System.Text.Json.Serialization.JsonPropertyName("publish")]
-        public bool Publish { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public enum ACLRowPrincipalType
     {
 
@@ -3900,24 +3918,6 @@ namespace KeetaNet.Anchor.Generated.Node
 
         [System.Runtime.Serialization.EnumMember(Value = @"CERTIFICATE")]
         CERTIFICATE = 1,
-
-    }
-
-    [System.CodeDom.Compiler.GeneratedCode("NJsonSchema", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
-    public partial record Blocks
-    {
-
-        [System.Text.Json.Serialization.JsonPropertyName("block")]
-        public Block Block { get; set; }
-
-        private System.Collections.Generic.IDictionary<string, object> _additionalProperties;
-
-        [System.Text.Json.Serialization.JsonExtensionData]
-        public System.Collections.Generic.IDictionary<string, object> AdditionalProperties
-        {
-            get { return _additionalProperties ?? (_additionalProperties = new System.Collections.Generic.Dictionary<string, object>()); }
-            set { _additionalProperties = value; }
-        }
 
     }
 
