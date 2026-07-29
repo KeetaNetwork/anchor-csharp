@@ -159,6 +159,9 @@ public sealed class UserClient : IDisposable
 		TransmitOptions? options = null,
 		CancellationToken cancellationToken = default)
 	{
+		// Require a signer to publish a block
+		_ = RequireSigner();
+
 		TransmitOptions resolved = OrDefaultFeePayer(options);
 		AccountState state = await GetState(cancellationToken).ConfigureAwait(false);
 
