@@ -217,6 +217,142 @@ public sealed class NodeFlowTests
 		harness.Shutdown();
 	}
 
+	/// <summary>The one base flag the ACL grant carries.</summary>
+	private static readonly BaseFlag[] AccessFlag = { BaseFlag.Access };
+
+	[Fact]
+	public async Task ChainHistoryAndAclReadsRoundTripAgainstTheLiveNode()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("node");
+		LedgerNode node = LedgerNode.Start(harness);
+
+		using var runtime = WasmRuntime.Load();
+		using Account holder = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account recipient = runtime.Accounts.FromSeed(E2eSeeds.Recipient, 0, E2eSeeds.Secp256k1);
+		using UserClient user = runtime.CreateUserClient(node.Api, holder, network: node.Network);
+		KeetaClient client = user.Client;
+		Account baseToken = client.BaseToken!;
+
+		node.Fund(E2eSeeds.Subject, Funding);
+
+		// Drive the ledger through the client's own writes: a send opens the
+		// chain, SET_INFO publishes metadata, and MODIFY_PERMISSIONS grants
+		// the recipient access on the holder's account.
+		const long Amount = 500;
+		Assert.True(await user.Send(recipient, Amount, baseToken, cancellationToken: cancellationToken));
+		Assert.True(await user.SetInfo("HOLDER", "ledger reads fixture", "meta", cancellationToken: cancellationToken));
+
+		using Permissions access = runtime.Blocks.PermissionsFromFlags(AccessFlag);
+		Assert.True(await user.UpdatePermissions(recipient, access, cancellationToken: cancellationToken));
+
+		AccountState state = await user.GetState(cancellationToken);
+		Assert.Equal("HOLDER", state.Info!.Name);
+		Assert.NotNull(state.HeadBlock);
+
+		// The head reads back as a live block originated by the holder, and
+		// fetching it by hash yields the identical block. An unknown hash is
+		// the node's "none" shape, not a failure.
+		using Block? head = await user.GetHeadBlock(cancellationToken);
+		Assert.NotNull(head);
+		Assert.Equal(state.HeadBlock!.Value, head!.Hash);
+
+		using (Account originator = head.GetAccount())
+		{
+			Assert.Equal(holder.PublicKeyString, originator.PublicKeyString);
+		}
+
+		using Block? byHash = await client.GetBlock(head.Hash, cancellationToken: cancellationToken);
+		Assert.Equal(head.Hash, byHash!.Hash);
+		Assert.Null(await client.GetBlock(BlockHash.Parse(new string('0', 64)), cancellationToken: cancellationToken));
+
+		// The chain lists most recent first; a limit of one pages with a
+		// cursor, and the block behind the head names the head as successor.
+		ChainPage newest = await user.GetChain(new ChainQuery(Limit: 1), cancellationToken);
+		Assert.Equal(head.Hash, Assert.Single(newest.Blocks).Hash);
+		Assert.NotNull(newest.NextKey);
+
+		ChainPage chain = await user.GetChain(cancellationToken: cancellationToken);
+		Assert.True(chain.Blocks.Count >= 2);
+		Assert.Equal(head.Hash, chain.Blocks[0].Hash);
+
+		using Block? successor = await client.GetSuccessorBlock(chain.Blocks[1].Hash, cancellationToken);
+		Assert.Equal(head.Hash, successor!.Hash);
+
+		// Account and global history both carry the committed staples.
+		HistoryPage history = await user.GetHistory(cancellationToken: cancellationToken);
+		Assert.NotEmpty(history.Entries);
+		Assert.All(history.Entries, entry => Assert.NotEmpty(entry.StapleBytes));
+		Assert.All(history.Entries, entry => Assert.NotNull(entry.Timestamp));
+
+		HistoryPage global = await client.GetGlobalHistory(cancellationToken: cancellationToken);
+		Assert.NotEmpty(global.Entries);
+
+		// The settled head retains its votes; nothing is pending and an
+		// unknown idempotent key resolves to no block.
+		IReadOnlyList<Vote>? votes = await client.GetBlockVotes(head.Hash, cancellationToken: cancellationToken);
+		Assert.NotNull(votes);
+		Assert.NotEmpty(votes!);
+		foreach (Vote vote in votes!)
+		{
+			vote.Dispose();
+		}
+
+		Assert.Null(await user.GetPendingBlock(cancellationToken));
+		Assert.Null(await user.GetBlockFromIdempotent(Guid.NewGuid().ToString("N"), cancellationToken: cancellationToken));
+
+		// The grant reads back typed from both directions: the recipient as
+		// principal, the holder as entity, carrying the access flag.
+		IReadOnlyList<Acl> granted = await client.GetAclsByPrincipal(recipient, cancellationToken);
+		Acl grant = Assert.Single(granted);
+		AclAccountPrincipal principal = Assert.IsType<AclAccountPrincipal>(grant.Principal);
+		Assert.Equal(recipient.PublicKeyString, principal.Account.PublicKeyString);
+		Assert.Equal(holder.PublicKeyString, grant.Entity!.PublicKeyString);
+		Assert.Contains(BaseFlag.Access, grant.Granted.Flags);
+
+		IReadOnlyList<Acl> byEntity = await client.GetAclsByEntity(holder, cancellationToken);
+		Assert.Contains(byEntity, entry => entry.Principal is AclAccountPrincipal account
+			&& account.Account.PublicKeyString == recipient.PublicKeyString);
+
+		// A pre-fetched vote quote rides the transmit's temporary round.
+		using (Block quoted = BuildSend(runtime, user, recipient, Amount, state.HeadBlock))
+		{
+			byte[] quote = await client.GetVoteQuote(new[] { quoted }, cancellationToken);
+			Assert.NotEmpty(quote);
+
+			TransmitOptions options = TransmitOptions.WithFeeSigner(holder);
+			options.Quote = quote;
+			Assert.True(await client.Transmit(quoted, options, cancellationToken));
+		}
+
+		BigInteger credited = await client.GetAccountBalance(recipient, baseToken, cancellationToken);
+		Assert.Equal(new BigInteger(Amount * 2), credited);
+
+		// A builder without a position publishes through the one-call path:
+		// the user client positions it on the live head and pays the fee.
+		using (BlockOperation send = runtime.Blocks.Send(recipient, Amount, baseToken))
+		using (BlockBuilder builder = user.InitBuilder())
+		{
+			builder.AddOperation(send);
+			Assert.True(await user.Publish(builder, cancellationToken: cancellationToken));
+		}
+
+		credited = await client.GetAccountBalance(recipient, baseToken, cancellationToken);
+		Assert.Equal(new BigInteger(Amount * 3), credited);
+
+		// The one-call identifier claim derives against the pre-claim head,
+		// publishes the CREATE_IDENTIFIER block, and returns the account.
+		AccountState beforeClaim = await user.GetState(cancellationToken);
+		using Account tokenId = await user.GenerateIdentifier(IdentifierKind.Token, cancellationToken: cancellationToken);
+		using Account expectedId = holder.GenerateIdentifier(IdentifierKind.Token, beforeClaim.HeadBlock);
+		Assert.Equal(expectedId.PublicKeyString, tokenId.PublicKeyString);
+
+		AccountState afterClaim = await user.GetState(cancellationToken);
+		Assert.NotEqual(beforeClaim.HeadBlock, afterClaim.HeadBlock);
+
+		harness.Shutdown();
+	}
+
 	/// <summary>
 	/// A signed base-token send from <paramref name="user"/>'s operating
 	/// account to <paramref name="to"/>, opening the chain when
