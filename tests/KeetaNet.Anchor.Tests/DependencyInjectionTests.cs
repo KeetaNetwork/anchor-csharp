@@ -48,17 +48,17 @@ public sealed class DependencyInjectionTests
 	}
 
 	[Fact]
-	public void RegistersANodeClientBackedByTheHttpClientFactory()
+	public void RegistersAKeetaClientBackedByTheHttpClientFactory()
 	{
 		var services = new ServiceCollection();
-		services.AddKeetaNetAnchorNodeClient("http://127.0.0.1:1/api/node");
+		services.AddKeetaNetAnchorKeetaClient("http://127.0.0.1:1/api/node");
 
 		using ServiceProvider provider = services.BuildServiceProvider();
-		using NodeClient first = provider.GetRequiredService<NodeClient>();
-		using NodeClient second = provider.GetRequiredService<NodeClient>();
+		using KeetaClient first = provider.GetRequiredService<KeetaClient>();
+		using KeetaClient second = provider.GetRequiredService<KeetaClient>();
 		Assert.NotSame(first, second);
 
-		// The node-client registration also provides the shared runtime.
+		// The client registration also provides the shared runtime.
 		WasmRuntime runtime = provider.GetRequiredService<WasmRuntime>();
 		Assert.False(runtime.IsDisposed);
 	}

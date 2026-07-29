@@ -87,7 +87,7 @@ public sealed class KycFlowTests
 
 		using var runtime = WasmRuntime.Load();
 		using Account observer = runtime.Accounts.FromSeed(E2eSeeds.Caller, 0, E2eSeeds.Secp256k1);
-		using NodeClient client = runtime.CreateNodeClient(anchor.NodeApi);
+		using KeetaClient client = runtime.CreateKeetaClient(anchor.NodeApi);
 
 		// An account that never published anything reads back as an empty list.
 		// The Account overload resolves the address itself, as the reference does.
@@ -138,7 +138,7 @@ public sealed class KycFlowTests
 		KycAnchor anchor = KycAnchor.Start(harness);
 
 		using var runtime = WasmRuntime.Load();
-		using NodeClient client = runtime.CreateNodeClient(anchor.NodeApi);
+		using KeetaClient client = runtime.CreateKeetaClient(anchor.NodeApi);
 
 		string version = await client.GetNodeVersion(cancellationToken);
 		Assert.NotEmpty(version);
@@ -175,7 +175,7 @@ public sealed class KycFlowTests
 		KycAnchor anchor = KycAnchor.Start(harness);
 
 		using var runtime = WasmRuntime.Load();
-		using NodeClient client = runtime.CreateNodeClient(anchor.NodeApi);
+		using KeetaClient client = runtime.CreateKeetaClient(anchor.NodeApi);
 
 		PublishedChain chain = PublishedChain.Publish(harness);
 		using Account holder = runtime.Accounts.FromPublicKeyString(chain.Account);

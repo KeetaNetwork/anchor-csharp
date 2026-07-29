@@ -20,7 +20,7 @@ public sealed class TrustTests
 	public void ChainStatusMatchesTheTrustSet()
 	{
 		using var runtime = WasmRuntime.Load();
-		using NodeClient client = runtime.CreateNodeClient(TestSeeds.NonRoutableAnchor);
+		using KeetaClient client = runtime.CreateKeetaClient(TestSeeds.NonRoutableAnchor);
 
 		using Account caAccount = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, TestSeeds.DefaultAlgorithm);
 		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
