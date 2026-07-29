@@ -18,6 +18,12 @@ public sealed class Block : WasmObject
 	/// <summary>The block's raw transport bytes, as a vote request carries them.</summary>
 	public byte[] ToBytes() => Runtime.BlockToBytes(Handle);
 
+	/// <summary>The block's transport hex encoding.</summary>
+	public string ToHex() => Runtime.BlockToHex(Handle);
+
+	/// <summary>The block's originating account. The caller owns the returned handle.</summary>
+	public Account GetAccount() => new(Runtime, Runtime.BlockAccount(Handle));
+
 	private protected override void Release(WasmRuntime runtime, int handle) => runtime.BlockFree(handle);
 }
 
@@ -37,10 +43,10 @@ public sealed class BlockOperation : WasmObject
 }
 
 /// <summary>
-/// A representative vote decoded from its transport bytes. Internal: votes
-/// only ever pass through the transmit flow.
+/// A representative vote decoded from its transport bytes. Produced by the
+/// transmit flow and the vote reads on <see cref="KeetaClient"/>.
 /// </summary>
-internal sealed class Vote : WasmObject
+public sealed class Vote : WasmObject
 {
 	internal Vote(WasmRuntime runtime, int handle)
 		: base(runtime, handle)
