@@ -7,7 +7,7 @@ namespace KeetaNet.Anchor;
 /// with <c>FEE_REQUIRED</c> before anything is published.
 /// </summary>
 public delegate Task<Crypto.Block?> GenerateFeeBlock(
-	NodeClient client,
+	KeetaClient client,
 	Crypto.VoteStaple staple,
 	IReadOnlyList<Crypto.Account> feeTokenPriority,
 	CancellationToken cancellationToken);

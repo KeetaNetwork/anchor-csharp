@@ -10,14 +10,14 @@ using GeneratedRepresentative = KeetaNet.Anchor.Generated.Node.Representative;
 namespace KeetaNet.Anchor;
 
 /// <summary>
-/// A lite, read-only client for the KeetaNet node API: the ledger reads the
-/// reference node client performs, over the transport generated from the
-/// canonical OpenAPI spec.
+/// The base client for the KeetaNet node API: ledger reads and the two-round
+/// transmit flow, over the transport generated from the canonical OpenAPI
+/// spec. Account-bound conveniences live on <see cref="UserClient"/>.
 /// </summary>
-public sealed class NodeClient : IDisposable
+public sealed class KeetaClient : IDisposable
 {
 	/// <summary>The block version the reference clients build.</summary>
-	private const int BlockVersion = 2;
+	internal const int BlockVersion = 2;
 
 	private readonly WasmRuntime _runtime;
 
@@ -37,7 +37,7 @@ public sealed class NodeClient : IDisposable
 	/// borrowed, not disposed. A bound <paramref name="network"/> enables the
 	/// write path; without one the client stays read-only.
 	/// </summary>
-	internal NodeClient(WasmRuntime runtime, string nodeUrl, HttpClient? http = null, long? network = null)
+	internal KeetaClient(WasmRuntime runtime, string nodeUrl, HttpClient? http = null, long? network = null)
 	{
 		_runtime = runtime;
 		_network = network;
@@ -184,6 +184,25 @@ public sealed class NodeClient : IDisposable
 	{
 		GetAccountBalanceResponse response = await Attempt(() => _api.GetAccountBalanceAsync(account.PublicKeyString, token.PublicKeyString, cancellationToken)).ConfigureAwait(false);
 		return OptionalHexAmount(response.Balance) ?? BigInteger.Zero;
+	}
+
+	/// <summary>
+	/// A builder pre-set with the reference block version, the bound network,
+	/// <paramref name="account"/> as originator, <paramref name="signer"/>
+	/// (the account itself when null) signing, and the current moment. The
+	/// caller positions it, appends operations, and builds. Requires a bound
+	/// network.
+	/// </summary>
+	internal Crypto.BlockBuilder InitBuilder(Crypto.Account account, Crypto.Account? signer = null)
+	{
+		(long network, _) = RequireNetwork();
+
+		return _runtime.Blocks.NewBuilder()
+			.WithVersion(BlockVersion)
+			.WithNetwork(network)
+			.WithAccount(account)
+			.WithSigner(signer ?? account)
+			.WithDate(DateTimeOffset.UtcNow);
 	}
 
 	/// <summary>Publish one signed block as its own staple. See the list overload.</summary>
@@ -515,7 +534,7 @@ public sealed class NodeClient : IDisposable
 	/// Position <paramref name="builder"/> atop <paramref name="previous"/>, or
 	/// as an opening block when the account has no chain yet.
 	/// </summary>
-	private static void PositionAfter(Crypto.BlockBuilder builder, string? previous)
+	internal static void PositionAfter(Crypto.BlockBuilder builder, string? previous)
 	{
 		if (string.IsNullOrEmpty(previous))
 		{

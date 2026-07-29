@@ -44,13 +44,28 @@ public sealed partial class WasmRuntime
 		AssetMovementClient.WithAccount(this, nodeUrl, root, account);
 
 	/// <summary>
-	/// Create a lite client for the node API at <paramref name="nodeUrl"/>. An
-	/// injected <paramref name="httpClient"/> (for example from
+	/// Create the base client for the node API at <paramref name="nodeUrl"/>.
+	/// An injected <paramref name="httpClient"/> (for example from
 	/// <c>IHttpClientFactory</c>) is borrowed, not disposed. Absent one the
 	/// client owns its own. Binding <paramref name="network"/> enables the
-	/// write path (<see cref="NodeClient.Transmit(Crypto.Block, TransmitOptions?, CancellationToken)"/>
+	/// write path (<see cref="KeetaClient.Transmit(Crypto.Block, TransmitOptions?, CancellationToken)"/>
 	/// and fee blocks). A client without one stays read-only.
 	/// </summary>
-	public NodeClient CreateNodeClient(string nodeUrl, HttpClient? httpClient = null, long? network = null) =>
+	public KeetaClient CreateKeetaClient(string nodeUrl, HttpClient? httpClient = null, long? network = null) =>
 		new(this, nodeUrl, httpClient, network);
+
+	/// <summary>
+	/// Create a client bound to <paramref name="signer"/> (null for a
+	/// read-only client), operating as <paramref name="account"/> when given
+	/// and as the signer itself otherwise. Both accounts are borrowed, not
+	/// disposed. See <see cref="CreateKeetaClient"/> for the remaining
+	/// parameters.
+	/// </summary>
+	public UserClient CreateUserClient(
+		string nodeUrl,
+		Account? signer,
+		HttpClient? httpClient = null,
+		long? network = null,
+		Account? account = null) =>
+		new(this, nodeUrl, httpClient, network, signer, account);
 }

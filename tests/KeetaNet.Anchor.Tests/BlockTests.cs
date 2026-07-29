@@ -50,6 +50,37 @@ public sealed class BlockTests
 	}
 
 	[Fact]
+	public void TheUserBuilderPreSetsTheSigningDefaults()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account sender = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account recipient = runtime.Accounts.FromSeed(TestSeeds.Recipient, 0, TestSeeds.DefaultAlgorithm);
+		using UserClient user = runtime.CreateUserClient(TestSeeds.NonRoutableAnchor, sender, network: Network);
+
+		using BlockOperation send = runtime.Blocks.Send(recipient, 42, user.Client.BaseToken!);
+		using BlockBuilder builder = user.InitBuilder();
+		using Block block = builder.AsOpening().AddOperation(send).Build();
+		Assert.NotEmpty(block.ToBytes());
+
+		// Without a bound network there is nothing to pre-set.
+		using UserClient unbound = runtime.CreateUserClient(TestSeeds.NonRoutableAnchor, sender);
+		KeetaException refused = Assert.Throws<KeetaException>(() =>
+		{
+			using BlockBuilder unreachable = unbound.InitBuilder();
+		});
+		Assert.Equal("NETWORK_REQUIRED", refused.Code);
+
+		// Without a signer there is nothing to sign with.
+		using UserClient readOnly = runtime.CreateUserClient(TestSeeds.NonRoutableAnchor, signer: null, network: Network);
+		Assert.True(readOnly.IsReadOnly);
+		KeetaException unsigned = Assert.Throws<KeetaException>(() =>
+		{
+			using BlockBuilder unreachable = readOnly.InitBuilder();
+		});
+		Assert.Equal("SIGNER_REQUIRED", unsigned.Code);
+	}
+
+	[Fact]
 	public async Task TransmitRefusesAClientWithoutABoundNetwork()
 	{
 		using var runtime = WasmRuntime.Load();
@@ -71,10 +102,44 @@ public sealed class BlockTests
 
 		// The anchor URL is non-routable, so reaching the transport would
 		// surface NODE_STATUS instead: the gate must trip first.
-		using NodeClient client = runtime.CreateNodeClient(TestSeeds.NonRoutableAnchor);
+		using KeetaClient client = runtime.CreateKeetaClient(TestSeeds.NonRoutableAnchor);
 		KeetaException refused = await Assert.ThrowsAsync<KeetaException>(
 			() => client.Transmit(block, cancellationToken: TestContext.Current.CancellationToken));
 		Assert.Equal("NETWORK_REQUIRED", refused.Code);
+	}
+
+	[Fact]
+	public async Task TransmitRefusesAReadOnlyUserClientEvenWithAFeeFactory()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account sender = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account recipient = runtime.Accounts.FromSeed(TestSeeds.Recipient, 0, TestSeeds.DefaultAlgorithm);
+		using Account token = runtime.Blocks.NetworkBaseToken(Network);
+
+		using BlockOperation send = runtime.Blocks.Send(recipient, 42, token);
+		using var builder = runtime.Blocks.NewBuilder();
+		builder
+			.WithVersion(2)
+			.WithNetwork(Network)
+			.WithAccount(sender)
+			.WithSigner(sender)
+			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000))
+			.AsOpening()
+			.AddOperation(send);
+		using Block block = builder.Build();
+
+		// A custom fee-block factory bypasses the default fee-payer branch,
+		// so the signer gate itself must refuse the prebuilt block.
+		var options = new TransmitOptions
+		{
+			FeeBlockFactory = (_, _, _, _) => Task.FromResult<Block?>(null),
+		};
+
+		using UserClient readOnly = runtime.CreateUserClient(
+			TestSeeds.NonRoutableAnchor, signer: null, network: Network, account: sender);
+		KeetaException refused = await Assert.ThrowsAsync<KeetaException>(
+			() => readOnly.Transmit(block, options, TestContext.Current.CancellationToken));
+		Assert.Equal("SIGNER_REQUIRED", refused.Code);
 	}
 
 	[Fact]
