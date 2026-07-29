@@ -24,6 +24,12 @@ public sealed class TransmitOptions
 	/// </summary>
 	public IList<Crypto.Account> FeeTokenPriority { get; } = new List<Crypto.Account>();
 
+	/// <summary>
+	/// A pre-fetched vote quote (from <see cref="KeetaClient.GetVoteQuote"/>)
+	/// to attach to the temporary round, locking in the quoted fee.
+	/// </summary>
+	public byte[]? Quote { get; set; }
+
 	/// <summary>The fee-block factory, or null to pay no fee.</summary>
 	public GenerateFeeBlock? FeeBlockFactory { get; set; }
 

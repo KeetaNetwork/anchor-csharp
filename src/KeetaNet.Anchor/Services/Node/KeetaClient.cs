@@ -1,11 +1,15 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Numerics;
 using System.Text.Json;
 
 using KeetaNet.Anchor.Generated.Node;
 
+using GeneratedBlock = KeetaNet.Anchor.Generated.Node.Block;
 using GeneratedCertificate = KeetaNet.Anchor.Generated.Node.Certificate;
+using GeneratedHistoryEntry = KeetaNet.Anchor.Generated.Node.HistoryEntry;
 using GeneratedRepresentative = KeetaNet.Anchor.Generated.Node.Representative;
+using GeneratedVote = KeetaNet.Anchor.Generated.Node.Vote;
 
 namespace KeetaNet.Anchor;
 
@@ -186,6 +190,213 @@ public sealed class KeetaClient : IDisposable
 		return OptionalHexAmount(response.Balance) ?? BigInteger.Zero;
 	}
 
+	/// <summary>The head block of <paramref name="account"/>'s chain, or null for a never-used account.</summary>
+	public async Task<Crypto.Block?> GetHeadBlock(
+		Crypto.Account account,
+		CancellationToken cancellationToken = default)
+	{
+		GetAccountHeadResponse response = await Attempt(() => _api.GetAccountHeadAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		return DecodeBlock(response.Block);
+	}
+
+	/// <summary>The next pending (unreceived) block for <paramref name="account"/>, if any.</summary>
+	public async Task<Crypto.Block?> GetPendingBlock(
+		Crypto.Account account,
+		CancellationToken cancellationToken = default)
+	{
+		GetPendingBlockResponse response = await Attempt(() => _api.GetPendingBlockAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		return DecodeBlock(response.Block);
+	}
+
+	/// <summary>The block identified by <paramref name="blockHash"/> on the given <paramref name="side"/>, if present.</summary>
+	public async Task<Crypto.Block?> GetBlock(
+		Crypto.BlockHash blockHash,
+		LedgerSide? side = null,
+		CancellationToken cancellationToken = default)
+	{
+		Side2? generated = side switch
+		{
+			LedgerSide.Main => Side2.Main,
+			LedgerSide.Side => Side2.Side,
+			_ => null,
+		};
+
+		GetBlockResponse response = await Attempt(() => _api.GetBlockAsync(blockHash.ToString(), generated, cancellationToken)).ConfigureAwait(false);
+		return DecodeBlock(response.Block);
+	}
+
+	/// <summary>The block following <paramref name="blockHash"/>, if one exists.</summary>
+	public async Task<Crypto.Block?> GetSuccessorBlock(
+		Crypto.BlockHash blockHash,
+		CancellationToken cancellationToken = default)
+	{
+		GetSuccessorBlockResponse response = await Attempt(() => _api.GetSuccessorBlockAsync(blockHash.ToString(), cancellationToken)).ConfigureAwait(false);
+		return DecodeBlock(response.SuccessorBlock);
+	}
+
+	/// <summary>
+	/// The block produced by <paramref name="account"/> for the idempotent
+	/// <paramref name="key"/>, if any, searching the given <paramref name="side"/>
+	/// (the main ledger when omitted).
+	/// </summary>
+	public async Task<Crypto.Block?> GetBlockFromIdempotent(
+		Crypto.Account account,
+		string key,
+		LedgerSide? side = null,
+		CancellationToken cancellationToken = default)
+	{
+		Side3? generated = side switch
+		{
+			LedgerSide.Main => Side3.Main,
+			LedgerSide.Side => Side3.Side,
+			_ => null,
+		};
+
+		GetBlockFromIdempotentResponse response = await Attempt(() => _api.GetBlockFromIdempotentAsync(account.PublicKeyString, key, generated, cancellationToken)).ConfigureAwait(false);
+		return DecodeBlock(response.Block);
+	}
+
+	/// <summary>
+	/// The verified votes the node holds for <paramref name="blockHash"/> on
+	/// <paramref name="side"/>, or null when it holds none. The caller owns
+	/// the votes and must dispose them.
+	/// </summary>
+	public async Task<IReadOnlyList<Crypto.Vote>?> GetBlockVotes(
+		Crypto.BlockHash blockHash,
+		LedgerSide side = LedgerSide.Main,
+		CancellationToken cancellationToken = default)
+	{
+		Side generated = side == LedgerSide.Side ? Side.Side : Side.Main;
+		GetBlockVotesResponse response = await Attempt(() => _api.GetBlockVotesAsync(blockHash.ToString(), generated, cancellationToken)).ConfigureAwait(false);
+		if (response.Votes is null)
+		{
+			return null;
+		}
+
+		var votes = new List<Crypto.Vote>(response.Votes.Count);
+		try
+		{
+			foreach (GeneratedVote vote in response.Votes)
+			{
+				votes.Add(DecodeVote(vote.Binary));
+			}
+		}
+		catch
+		{
+			foreach (Crypto.Vote vote in votes)
+			{
+				vote.Dispose();
+			}
+
+			throw;
+		}
+
+		return votes;
+	}
+
+	/// <summary>
+	/// A single page of <paramref name="account"/>'s block chain (most recent
+	/// first), bounded by <paramref name="query"/>, with the cursor for the
+	/// next page. The caller owns the blocks and must dispose them.
+	/// </summary>
+	public async Task<ChainPage> GetAccountChain(
+		Crypto.Account account,
+		ChainQuery? query = null,
+		CancellationToken cancellationToken = default)
+	{
+		ChainQuery bounds = query ?? new ChainQuery();
+		GetAccountChainResponse response = await Attempt(() => _api.GetAccountChainAsync(
+			account.PublicKeyString,
+			bounds.Start?.ToString(),
+			bounds.End?.ToString(),
+			bounds.Limit,
+			cancellationToken)).ConfigureAwait(false);
+
+		ICollection<GetAccountChainResponseBlocksItem> items = response.Blocks ?? Array.Empty<GetAccountChainResponseBlocksItem>();
+		var blocks = new List<Crypto.Block>(items.Count);
+		try
+		{
+			foreach (GetAccountChainResponseBlocksItem item in items)
+			{
+				if (DecodeBlock(item.Block) is { } block)
+				{
+					blocks.Add(block);
+				}
+			}
+		}
+		catch
+		{
+			foreach (Crypto.Block block in blocks)
+			{
+				block.Dispose();
+			}
+
+			throw;
+		}
+
+		return new ChainPage(blocks, OptionalBlockHash(response.NextKey));
+	}
+
+	/// <summary>
+	/// A single page of <paramref name="account"/>'s committed staple history,
+	/// bounded by <paramref name="query"/>, with the cursor for the next page.
+	/// </summary>
+	public async Task<HistoryPage> GetAccountHistory(
+		Crypto.Account account,
+		HistoryQuery? query = null,
+		CancellationToken cancellationToken = default)
+	{
+		HistoryQuery bounds = query ?? new HistoryQuery();
+		GetAccountHistoryResponse response = await Attempt(() => _api.GetAccountHistoryAsync(
+			account.PublicKeyString,
+			bounds.Start?.ToString(),
+			bounds.Limit,
+			cancellationToken)).ConfigureAwait(false);
+
+		return DecodeHistoryPage(response.History, response.NextKey);
+	}
+
+	/// <summary>
+	/// A single page of the node's global staple history, bounded by
+	/// <paramref name="query"/>, with the cursor for the next page.
+	/// </summary>
+	public async Task<HistoryPage> GetGlobalHistory(
+		HistoryQuery? query = null,
+		CancellationToken cancellationToken = default)
+	{
+		HistoryQuery bounds = query ?? new HistoryQuery();
+		GetGlobalHistoryResponse response = await Attempt(() => _api.GetGlobalHistoryAsync(
+			bounds.Start?.ToString(),
+			bounds.Limit,
+			cancellationToken)).ConfigureAwait(false);
+
+		return DecodeHistoryPage(response.History, response.NextKey);
+	}
+
+	/// <summary>
+	/// ACL entries where <paramref name="account"/> is the principal. The
+	/// caller owns the returned accounts and permission sets.
+	/// </summary>
+	public async Task<IReadOnlyList<Acl>> GetAclsByPrincipal(
+		Crypto.Account account,
+		CancellationToken cancellationToken = default)
+	{
+		ListAclsByPrincipalResponse response = await Attempt(() => _api.ListAclsByPrincipalAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		return DecodeAcls(response.Permissions);
+	}
+
+	/// <summary>
+	/// ACL entries granted to <paramref name="account"/> as an entity. The
+	/// caller owns the returned accounts and permission sets.
+	/// </summary>
+	public async Task<IReadOnlyList<Acl>> GetAclsByEntity(
+		Crypto.Account account,
+		CancellationToken cancellationToken = default)
+	{
+		ListAclsByEntityResponse response = await Attempt(() => _api.ListAclsByEntityAsync(account.PublicKeyString, cancellationToken)).ConfigureAwait(false);
+		return DecodeAcls(response.Permissions);
+	}
+
 	/// <summary>
 	/// A builder pre-set with the reference block version, the bound network,
 	/// <paramref name="account"/> as originator, <paramref name="signer"/>
@@ -225,7 +436,7 @@ public sealed class KeetaClient : IDisposable
 	{
 		TransmitOptions resolved = options ?? new TransmitOptions();
 		List<string> encoded = blocks.Select(EncodeBlock).ToList();
-		string temporary = await RequestVote(encoded, priorVote: null, cancellationToken).ConfigureAwait(false);
+		string temporary = await RequestVote(encoded, priorVote: null, resolved.Quote, cancellationToken).ConfigureAwait(false);
 
 		Crypto.Block? feeBlock = null;
 		try
@@ -245,7 +456,7 @@ public sealed class KeetaClient : IDisposable
 				encoded.Add(EncodeBlock(feeBlock));
 			}
 
-			string permanent = await RequestVote(encoded, temporary, cancellationToken).ConfigureAwait(false);
+			string permanent = await RequestVote(encoded, temporary, quote: null, cancellationToken).ConfigureAwait(false);
 			return await PublishStaple(all, permanent, cancellationToken).ConfigureAwait(false);
 		}
 		finally
@@ -426,19 +637,47 @@ public sealed class KeetaClient : IDisposable
 	private static string EncodeBlock(Crypto.Block block) => Convert.ToBase64String(block.ToBytes());
 
 	/// <summary>
+	/// Request a non-binding vote quote for <paramref name="blocks"/>, locking
+	/// in the fee the node would charge. Attach it to a transmit through
+	/// <see cref="TransmitOptions.Quote"/>.
+	/// </summary>
+	public async Task<byte[]> GetVoteQuote(
+		IReadOnlyList<Crypto.Block> blocks,
+		CancellationToken cancellationToken = default)
+	{
+		var body = new Body2 { Blocks = blocks.Select(EncodeBlock).ToList() };
+		CreateVoteQuoteResponse response = await Attempt(() => _api.CreateVoteQuoteAsync(body, cancellationToken)).ConfigureAwait(false);
+
+		string? quote = response.Quote?.Binary;
+		if (string.IsNullOrEmpty(quote))
+		{
+			throw new KeetaException("VOTE_DECLINED", "the node returned no vote quote");
+		}
+
+		return Convert.FromBase64String(quote);
+	}
+
+	/// <summary>
 	/// Request one vote over <paramref name="blocksBase64"/>. Round one leaves
-	/// <paramref name="priorVote"/> null so the body omits <c>votes</c> entirely.
-	/// Round two attaches the temporary vote so the representative escalates it.
+	/// <paramref name="priorVote"/> null so the body omits <c>votes</c> entirely,
+	/// and may attach a pre-fetched <paramref name="quote"/>. Round two attaches
+	/// the temporary vote so the representative escalates it.
 	/// </summary>
 	private async Task<string> RequestVote(
 		IReadOnlyList<string> blocksBase64,
 		string? priorVote,
+		byte[]? quote,
 		CancellationToken cancellationToken)
 	{
 		var body = new Body { Blocks = blocksBase64.ToList() };
 		if (priorVote is not null)
 		{
 			body.Votes = new List<string> { priorVote };
+		}
+
+		if (quote is not null)
+		{
+			body.Quote = Convert.ToBase64String(quote);
 		}
 
 		CreateVoteResponse response = await Attempt(() => _api.CreateVoteAsync(body, cancellationToken)).ConfigureAwait(false);
@@ -579,13 +818,19 @@ public sealed class KeetaClient : IDisposable
 
 	/// <summary>
 	/// Run one generated transport call, projecting its failure to a
-	/// <see cref="KeetaException"/> with the stable <c>NODE_STATUS</c> code.
+	/// <see cref="KeetaException"/>. A node error envelope surfaces its own
+	/// code (for example <c>LEDGER_SUCCESSOR_VOTE_EXISTS</c>); anything else
+	/// collapses to the stable <c>NODE_STATUS</c> code.
 	/// </summary>
 	private static async Task<T> Attempt<T>(Func<Task<T>> operation)
 	{
 		try
 		{
 			return await operation().ConfigureAwait(false);
+		}
+		catch (NodeApiException<Error> error) when (!string.IsNullOrEmpty(error.Result?.Code))
+		{
+			throw new KeetaException(error.Result.Code, error.Result.Message ?? "the node rejected the request", error);
 		}
 		catch (NodeApiException error)
 		{
@@ -596,6 +841,112 @@ public sealed class KeetaClient : IDisposable
 	/// <summary>Map a generated certificate record to the SDK's shared record.</summary>
 	private static Certificate DecodeCertificate(GeneratedCertificate record) =>
 		new(record.Certificate1, record.Intermediates?.ToArray() ?? Array.Empty<string>());
+
+	/// <summary>
+	/// Materialize a transport block (base64 <c>$binary</c>) inside the core.
+	/// An absent block field is the node's "none" shape.
+	/// </summary>
+	private Crypto.Block? DecodeBlock(GeneratedBlock? block)
+	{
+		if (string.IsNullOrEmpty(block?.Binary))
+		{
+			return null;
+		}
+
+		string hex = Convert.ToHexString(Convert.FromBase64String(block.Binary));
+		return _runtime.Blocks.ParseHex(hex);
+	}
+
+	/// <summary>Map generated history entries and the paging cursor to the typed page.</summary>
+	private static HistoryPage DecodeHistoryPage(ICollection<GeneratedHistoryEntry>? history, string? nextKey)
+	{
+		ICollection<GeneratedHistoryEntry> items = history ?? Array.Empty<GeneratedHistoryEntry>();
+		var entries = new List<NodeHistoryEntry>(items.Count);
+		foreach (GeneratedHistoryEntry item in items)
+		{
+			string? binary = item.VoteStaple?.Binary;
+			if (string.IsNullOrEmpty(binary))
+			{
+				continue;
+			}
+
+			DateTimeOffset? timestamp = null;
+			if (!string.IsNullOrEmpty(item.Timestamp))
+			{
+				timestamp = DateTimeOffset.Parse(item.Timestamp, CultureInfo.InvariantCulture);
+			}
+
+			entries.Add(new NodeHistoryEntry(Convert.FromBase64String(binary), OptionalBlockHash(item.Id), timestamp));
+		}
+
+		return new HistoryPage(entries, OptionalBlockHash(nextKey));
+	}
+
+	/// <summary>
+	/// Map generated ACL rows to typed entries: each principal by its declared
+	/// type, the entity/target accounts, and the <c>[base, external]</c>
+	/// permission bitmaps decoded through the core.
+	/// </summary>
+	[SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP001:Dispose created",
+		Justification = "Ownership of the permission set transfers to the returned Acl entry; the caller disposes it with the entry's accounts, as with every model carrying live handles.")]
+	private Acl[] DecodeAcls(ICollection<ACLRow>? rows) =>
+		(rows ?? Array.Empty<ACLRow>())
+			.Select(row =>
+			{
+				Crypto.Permissions granted = _runtime.Blocks.PermissionsFromBitmaps(
+					row.Permissions?.FirstOrDefault() ?? "0x0",
+					row.Permissions?.Skip(1).FirstOrDefault() ?? "0x0");
+
+				return new Acl(
+					DecodeAclPrincipal(row.PrincipalType, row.Principal),
+					OptionalAccount(row.Entity),
+					OptionalAccount(row.Target),
+					granted);
+			})
+			.ToArray();
+
+	/// <summary>
+	/// Decode an ACL principal from its wire shape: an account address string
+	/// when the type is <c>ACCOUNT</c>, or an object carrying the issuing
+	/// certificate hash and its anchor account when <c>CERTIFICATE</c>.
+	/// </summary>
+	private AclPrincipal? DecodeAclPrincipal(ACLRowPrincipalType kind, object? principal)
+	{
+		if (principal is not JsonElement value)
+		{
+			return null;
+		}
+
+		if (kind == ACLRowPrincipalType.CERTIFICATE)
+		{
+			string? hash = value.GetProperty("certificate").GetString();
+			string? anchor = value.GetProperty("certificateAccount").GetString();
+			if (hash is null || anchor is null)
+			{
+				throw new KeetaException("ACL_PRINCIPAL", "a certificate principal requires 'certificate' and 'certificateAccount'");
+			}
+
+			return new AclCertificatePrincipal(
+				Crypto.CertificateHash.Parse(hash),
+				_runtime.Accounts.FromPublicKeyString(anchor));
+		}
+
+		string? address = value.GetString();
+		if (address is null)
+		{
+			throw new KeetaException("ACL_PRINCIPAL", "an account principal must be an address string");
+		}
+
+		return new AclAccountPrincipal(_runtime.Accounts.FromPublicKeyString(address));
+	}
+
+	/// <summary>Parse an optional account address field, null when absent.</summary>
+	private Crypto.Account? OptionalAccount(string? address) =>
+		string.IsNullOrEmpty(address) ? null : _runtime.Accounts.FromPublicKeyString(address);
+
+	/// <summary>Parse an optional hex hash field, null when absent.</summary>
+	private static Crypto.BlockHash? OptionalBlockHash(string? hex) =>
+		string.IsNullOrEmpty(hex) ? null : Crypto.BlockHash.Parse(hex);
 
 	/// <summary>
 	/// Map one account's generated state fields to the typed

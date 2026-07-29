@@ -55,11 +55,19 @@ public sealed partial class WasmRuntime
 		new(this, nodeUrl, httpClient, network);
 
 	/// <summary>
+	/// Create the base client for a well-known <paramref name="network"/>,
+	/// the reference <c>fromNetwork</c>: its first representative's endpoint
+	/// and its network id, so the write path is enabled.
+	/// </summary>
+	public KeetaClient CreateKeetaClient(KeetaNetwork network, HttpClient? httpClient = null) =>
+		new(this, network.RepresentativeApiUrl(), httpClient, network.Id());
+
+	/// <summary>
 	/// Create a client bound to <paramref name="signer"/> (null for a
 	/// read-only client), operating as <paramref name="account"/> when given
 	/// and as the signer itself otherwise. Both accounts are borrowed, not
-	/// disposed. See <see cref="CreateKeetaClient"/> for the remaining
-	/// parameters.
+	/// disposed. See <see cref="CreateKeetaClient(string, HttpClient?, long?)"/>
+	/// for the remaining parameters.
 	/// </summary>
 	public UserClient CreateUserClient(
 		string nodeUrl,
@@ -68,4 +76,16 @@ public sealed partial class WasmRuntime
 		long? network = null,
 		Account? account = null) =>
 		new(this, nodeUrl, httpClient, network, signer, account);
+
+	/// <summary>
+	/// Create a signer-bound client for a well-known
+	/// <paramref name="network"/>, the reference <c>UserClient.fromNetwork</c>.
+	/// See the URL overload for the remaining parameters.
+	/// </summary>
+	public UserClient CreateUserClient(
+		KeetaNetwork network,
+		Account? signer,
+		HttpClient? httpClient = null,
+		Account? account = null) =>
+		new(this, network.RepresentativeApiUrl(), httpClient, network.Id(), signer, account);
 }
