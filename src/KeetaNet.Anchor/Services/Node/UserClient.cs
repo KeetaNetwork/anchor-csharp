@@ -131,7 +131,7 @@ public sealed class UserClient : IDisposable
 		Crypto.Block block,
 		TransmitOptions? options = null,
 		CancellationToken cancellationToken = default) =>
-		_client.Transmit(block, OrDefaultFeePayer(options), cancellationToken);
+		Transmit(new[] { block }, options, cancellationToken);
 
 	/// <summary>
 	/// Publish <paramref name="blocks"/> as one atomic staple, paying any
@@ -141,8 +141,12 @@ public sealed class UserClient : IDisposable
 	public Task<bool> Transmit(
 		IReadOnlyList<Crypto.Block> blocks,
 		TransmitOptions? options = null,
-		CancellationToken cancellationToken = default) =>
-		_client.Transmit(blocks, OrDefaultFeePayer(options), cancellationToken);
+		CancellationToken cancellationToken = default)
+	{
+		_ = RequireSigner();
+
+		return _client.Transmit(blocks, OrDefaultFeePayer(options), cancellationToken);
+	}
 
 	/// <summary>
 	/// Position <paramref name="builder"/> atop the operating account's
