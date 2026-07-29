@@ -428,12 +428,17 @@ public sealed class KeetaClient : IDisposable
 	/// reference two-round transmit. When the temporary round's votes require
 	/// a fee, the factory in <paramref name="options"/> is invoked with that
 	/// round and its block joins the permanent round and the staple.
+	/// Requires a bound network.
 	/// </summary>
 	public async Task<bool> Transmit(
 		IReadOnlyList<Crypto.Block> blocks,
 		TransmitOptions? options = null,
 		CancellationToken cancellationToken = default)
 	{
+		// The whole write path is gated, not just fee construction, so an
+		// unbound client keeps its documented read-only guarantee.
+		_ = RequireNetwork();
+
 		TransmitOptions resolved = options ?? new TransmitOptions();
 		List<string> encoded = blocks.Select(EncodeBlock).ToList();
 		string temporary = await RequestVote(encoded, priorVote: null, resolved.Quote, cancellationToken).ConfigureAwait(false);
