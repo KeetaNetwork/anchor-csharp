@@ -9,17 +9,14 @@ namespace KeetaNet.Anchor;
 /// </summary>
 public sealed class AssetSimulatedTransfer
 {
-	private readonly AssetMovementClient _client;
 	private readonly AssetProvider _provider;
 	private readonly AssetTransferRequest _request;
 
 	internal AssetSimulatedTransfer(
-		AssetMovementClient client,
 		AssetProvider provider,
 		AssetTransferRequest request,
 		IReadOnlyList<JsonElement> instructionChoices)
 	{
-		_client = client;
 		_provider = provider;
 		_request = request;
 		InstructionChoices = instructionChoices;
@@ -45,7 +42,7 @@ public sealed class AssetSimulatedTransfer
 		};
 		AssetTransferRequest request = _request with { To = to };
 
-		return _client.InitiateTransfer(_provider, request, cancellationToken);
+		return _provider.InitiateTransfer(request, cancellationToken);
 	}
 }
 
@@ -56,16 +53,13 @@ public sealed class AssetSimulatedTransfer
 /// </summary>
 public sealed class AssetTransfer
 {
-	private readonly AssetMovementClient _client;
 	private readonly AssetProvider _provider;
 
 	internal AssetTransfer(
-		AssetMovementClient client,
 		AssetProvider provider,
 		string id,
 		IReadOnlyList<JsonElement> instructionChoices)
 	{
-		_client = client;
 		_provider = provider;
 		Id = id;
 		InstructionChoices = instructionChoices;
@@ -79,7 +73,7 @@ public sealed class AssetTransfer
 
 	/// <summary>Read this transfer's current status.</summary>
 	public Task<AssetTransferStatus> GetTransferStatus(CancellationToken cancellationToken = default) =>
-		_client.GetTransferStatus(_provider, Id, cancellationToken);
+		_provider.GetTransferStatus(Id, cancellationToken);
 
 	/// <summary>Execute a fiat pull <paramref name="instruction"/> for this transfer.</summary>
 	public Task<AssetTransferStatus> ExecuteTransfer(
@@ -87,6 +81,6 @@ public sealed class AssetTransfer
 		CancellationToken cancellationToken = default)
 	{
 		var request = new AssetExecuteRequest(Id, instruction);
-		return _client.ExecuteTransfer(_provider, request, cancellationToken);
+		return _provider.ExecuteTransfer(request, cancellationToken);
 	}
 }

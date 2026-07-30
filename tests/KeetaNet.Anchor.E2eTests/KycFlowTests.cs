@@ -38,10 +38,10 @@ public sealed class KycFlowTests
 		Assert.False(supported.Worldwide);
 		Assert.Equal(Countries, supported.Countries);
 
-		using CryptoCertificate ca = client.GetCA(provider);
+		using CryptoCertificate ca = provider.GetCA();
 		Assert.NotEmpty(ca.SubjectPublicKey);
 
-		VerificationOutcome created = await client.StartVerification(provider, Countries, cancellationToken: cancellationToken);
+		VerificationOutcome created = await provider.StartVerification(Countries, cancellationToken: cancellationToken);
 		Assert.NotNull(created.Ready);
 		Verification verification = created.Ready!;
 		Assert.NotEmpty(verification.Id);
@@ -50,20 +50,20 @@ public sealed class KycFlowTests
 
 		// A redirect URL rides the signed create body. The server must accept
 		// the extra field and still assign a verification.
-		VerificationOutcome redirected = await client.StartVerification(provider, Countries, "https://example.test/done", cancellationToken);
+		VerificationOutcome redirected = await provider.StartVerification(Countries, "https://example.test/done", cancellationToken);
 		Assert.NotNull(redirected.Ready);
 		Assert.NotEmpty(redirected.Ready!.Id);
 
-		StatusOutcome status = await client.GetVerificationStatus(provider, verification.Id, cancellationToken);
+		StatusOutcome status = await provider.GetVerificationStatus(verification.Id, cancellationToken);
 		Assert.NotNull(status.Ready);
 		Assert.Equal("pending", status.Ready!.Status);
 		Assert.True(status.Ready.RequiresManualVerification);
 
-		CertificatesOutcome pending = await client.GetCertificates(provider, "pending", cancellationToken);
+		CertificatesOutcome pending = await provider.GetCertificates("pending", cancellationToken);
 		Assert.Null(pending.Ready);
 		Assert.NotNull(pending.RetryAfterMs);
 
-		CertificatesOutcome ready = await client.GetCertificates(provider, "ready", cancellationToken);
+		CertificatesOutcome ready = await provider.GetCertificates("ready", cancellationToken);
 		Assert.NotNull(ready.Ready);
 		Assert.NotEmpty(ready.Ready!.Results);
 
@@ -71,7 +71,7 @@ public sealed class KycFlowTests
 		// `[leaf, ca]` chain over the same signed-URL certificate path.
 		IssuedLeaf issued = IssuedLeaf.Issue(harness);
 
-		CertificatesOutcome chain = await client.GetCertificates(provider, issued.VerificationId, cancellationToken);
+		CertificatesOutcome chain = await provider.GetCertificates(issued.VerificationId, cancellationToken);
 		Assert.NotNull(chain.Ready);
 		Assert.Equal(2, chain.Ready!.Results.Count);
 

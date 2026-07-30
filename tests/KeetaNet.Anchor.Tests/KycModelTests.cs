@@ -37,13 +37,13 @@ public sealed class KycModelTests
 	[Fact]
 	public void NoProvidersFoldToAnEmptyUnion()
 	{
-		SupportedCountries folded = SupportedCountries.FromProviders(Array.Empty<KycProvider>());
+		SupportedCountries folded = SupportedCountries.FromProviders(Array.Empty<KycProviderInfo>());
 
 		Assert.False(folded.Worldwide);
 		Assert.Empty(folded.Countries);
 	}
 
-	/// <summary>A provider advertising <paramref name="countryCodes"/>, or worldwide when null.</summary>
-	private static KycProvider Provider(string id, string[]? countryCodes) =>
+	/// <summary>A provider snapshot advertising <paramref name="countryCodes"/>, or worldwide when null.</summary>
+	private static KycProviderInfo Provider(string id, string[]? countryCodes) =>
 		new(id, "ca-pem", new KycOperations(null, null, null, null, null), countryCodes);
 }

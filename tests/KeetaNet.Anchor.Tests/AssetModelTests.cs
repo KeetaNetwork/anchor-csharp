@@ -78,12 +78,8 @@ public sealed class AssetModelTests
 	[Fact]
 	public void LegalDisclaimersDecodeAndSkipMalformedEntries()
 	{
-		using var runtime = WasmRuntime.Load();
-		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
-
 		// One well-formed markdown disclaimer and one with an unknown purpose
-		AssetProvider provider = Provider(legal: """
+		AssetProviderInfo provider = Provider(legal: """
 		{
 			"disclaimers": [
 				{ "purpose": "general", "content": { "type": "markdown", "content": "# Terms" } },
@@ -92,7 +88,7 @@ public sealed class AssetModelTests
 		}
 		""");
 
-		IReadOnlyList<AssetDisclaimer>? disclaimers = client.GetLegalDisclaimers(provider);
+		IReadOnlyList<AssetDisclaimer>? disclaimers = provider.GetLegalDisclaimers();
 		Assert.NotNull(disclaimers);
 		AssetDisclaimer disclaimer = Assert.Single(disclaimers!);
 		Assert.Equal(AssetDisclaimerPurpose.General, disclaimer.Purpose);
@@ -100,19 +96,15 @@ public sealed class AssetModelTests
 		Assert.Equal("# Terms", disclaimer.Content.Content);
 
 		// A provider without legal metadata reports none, not an empty list.
-		Assert.Null(client.GetLegalDisclaimers(Provider(legal: null)));
+		Assert.Null(Provider(legal: null).GetLegalDisclaimers());
 	}
 
 	[Fact]
 	public void TokenMetadataDecodesNumberAndStringDecimalPlaces()
 	{
-		using var runtime = WasmRuntime.Load();
-		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
-
 		// The reference TokenMetadataJSON publishes decimalPlaces as a number
 		// or a numeric string; both must decode, and garbage must read absent.
-		AssetProvider provider = Provider(locationMetadata: """
+		AssetProviderInfo provider = Provider(locationMetadata: """
 		{
 			"chain:evm:100": {
 				"assets": {
@@ -124,21 +116,21 @@ public sealed class AssetModelTests
 		}
 		""");
 
-		AssetTokenMetadata? full = client.GetAssetMetadataForLocation(provider, "chain:evm:100", "text-places");
+		AssetTokenMetadata? full = provider.GetAssetMetadataForLocation("chain:evm:100", "text-places");
 		Assert.NotNull(full);
 		Assert.Equal(18u, full!.DecimalPlaces);
 		Assert.Equal("https://logo.test/t.png", full.LogoUri);
 		Assert.Equal("Token", full.DisplayName);
 		Assert.Equal("$TOK", full.Ticker);
 
-		AssetTokenMetadata? bare = client.GetAssetMetadataForLocation(provider, "chain:evm:100", "numeric-places");
+		AssetTokenMetadata? bare = provider.GetAssetMetadataForLocation("chain:evm:100", "numeric-places");
 		Assert.NotNull(bare);
 		Assert.Equal(6u, bare!.DecimalPlaces);
 		Assert.Null(bare.LogoUri);
 
-		Assert.Null(client.GetAssetMetadataForLocation(provider, "chain:evm:100", "garbage-places"));
-		Assert.Null(client.GetAssetMetadataForLocation(provider, "chain:evm:100", "absent-asset"));
-		Assert.Null(client.GetAssetMetadataForLocation(provider, "chain:solana:1", "text-places"));
+		Assert.Null(provider.GetAssetMetadataForLocation("chain:evm:100", "garbage-places"));
+		Assert.Null(provider.GetAssetMetadataForLocation("chain:evm:100", "absent-asset"));
+		Assert.Null(provider.GetAssetMetadataForLocation("chain:solana:1", "text-places"));
 	}
 
 	[Fact]
@@ -216,11 +208,7 @@ public sealed class AssetModelTests
 	[Fact]
 	public void AnchorDetailsDecodeAndDropAMalformedDescription()
 	{
-		using var runtime = WasmRuntime.Load();
-		using Account account = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using AssetMovementClient client = runtime.CreateAssetMovementClient(TestSeeds.NonRoutableAnchor, account.PublicKeyString, account);
-
-		AssetProvider provider = Provider(legal: """
+		AssetProviderInfo provider = Provider(legal: """
 		{
 			"anchorDetails": {
 				"name": "Anchor Under Test",
@@ -230,7 +218,7 @@ public sealed class AssetModelTests
 		}
 		""");
 
-		AssetAnchorDetails? details = client.GetProviderAnchorDetails(provider);
+		AssetAnchorDetails? details = provider.GetAnchorDetails();
 		Assert.NotNull(details);
 		Assert.Equal("Anchor Under Test", details!.Name);
 		Assert.Equal(AssetContentType.Plaintext, details.Description!.Type);
@@ -238,22 +226,22 @@ public sealed class AssetModelTests
 		Assert.Equal("https://logo.test/a.svg", details.Logo);
 
 		// A malformed description drops while the identifying fields survive.
-		AssetProvider malformed = Provider(legal: """
+		AssetProviderInfo malformed = Provider(legal: """
 		{ "anchorDetails": { "name": "Partial", "description": { "type": "unknown-kind", "content": 5 } } }
 		""");
-		AssetAnchorDetails? partial = client.GetProviderAnchorDetails(malformed);
+		AssetAnchorDetails? partial = malformed.GetAnchorDetails();
 		Assert.NotNull(partial);
 		Assert.Equal("Partial", partial!.Name);
 		Assert.Null(partial.Description);
 		Assert.Null(partial.Logo);
 
 		// Legal metadata without anchor details reports none.
-		Assert.Null(client.GetProviderAnchorDetails(Provider(legal: """{ "disclaimers": [] }""")));
-		Assert.Null(client.GetProviderAnchorDetails(Provider(legal: null)));
+		Assert.Null(Provider(legal: """{ "disclaimers": [] }""").GetAnchorDetails());
+		Assert.Null(Provider(legal: null).GetAnchorDetails());
 	}
 
-	/// <summary>A minimal provider carrying only the polymorphic metadata under test.</summary>
-	private static AssetProvider Provider(string? legal = null, string? locationMetadata = null)
+	/// <summary>A minimal provider snapshot carrying only the polymorphic metadata under test.</summary>
+	private static AssetProviderInfo Provider(string? legal = null, string? locationMetadata = null)
 	{
 		JsonElement? legalElement = null;
 		if (legal is not null)
@@ -267,7 +255,7 @@ public sealed class AssetModelTests
 			locationElement = JsonSerializer.Deserialize<JsonElement>(locationMetadata);
 		}
 
-		return new AssetProvider(
+		return new AssetProviderInfo(
 			"provider-under-test",
 			new Dictionary<string, AssetEndpoint>(),
 			LocationMetadata: locationElement,

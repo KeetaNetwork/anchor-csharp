@@ -4,10 +4,11 @@ namespace KeetaNet.Anchor;
 
 /// <summary>
 /// A KYC anchor client bound to a signer and a metadata root. Discovery, request
-/// signing, retries, and polling all run inside the wasm core. The client is
-/// thread-safe: operations serialize onto the runtime's dispatcher, and every
-/// networked method honors its <see cref="CancellationToken"/> before dispatch
-/// and during host HTTP and sleeps.
+/// signing, retries, and polling all run inside the wasm core. Discovery returns
+/// <see cref="KycProvider"/> handles carrying the verification operations. The
+/// client is thread-safe: operations serialize onto the runtime's dispatcher,
+/// and every networked method honors its <see cref="CancellationToken"/> before
+/// dispatch and during host HTTP and sleeps.
 /// </summary>
 public sealed class KycClient : WasmObject
 {
@@ -33,10 +34,8 @@ public sealed class KycClient : WasmObject
 		IEnumerable<string> countries,
 		CancellationToken cancellationToken = default)
 	{
-		string countriesJson = SerializeCountries(countries);
-
-		byte[] payload = await Runtime.KycProviders(Handle, countriesJson, cancellationToken).ConfigureAwait(false);
-		return KeetaJson.ReadList<KycProvider>(payload);
+		IReadOnlyList<KycProviderInfo> infos = await GetProviderInfos(countries, cancellationToken).ConfigureAwait(false);
+		return infos.Select(Provider).ToArray();
 	}
 
 	/// <summary>
@@ -45,20 +44,23 @@ public sealed class KycClient : WasmObject
 	/// </summary>
 	public async Task<SupportedCountries> GetSupportedCountries(CancellationToken cancellationToken = default)
 	{
-		IReadOnlyList<KycProvider> providers = await GetProviders(Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
-		return SupportedCountries.FromProviders(providers);
+		IReadOnlyList<KycProviderInfo> infos = await GetProviderInfos(Array.Empty<string>(), cancellationToken).ConfigureAwait(false);
+		return SupportedCountries.FromProviders(infos);
 	}
+
+	/// <summary>Bind a stored metadata snapshot back to this client as an operable handle.</summary>
+	public KycProvider Provider(KycProviderInfo info) => new(this, info);
 
 	/// <summary>
 	/// Start a verification with <paramref name="provider"/> for
 	/// <paramref name="countries"/>, optionally redirecting the user to
 	/// <paramref name="redirect"/> when the flow ends.
 	/// </summary>
-	public async Task<VerificationOutcome> StartVerification(
-		KycProvider provider,
+	internal async Task<VerificationOutcome> StartVerification(
+		KycProviderInfo provider,
 		IEnumerable<string> countries,
-		string? redirect = null,
-		CancellationToken cancellationToken = default)
+		string? redirect,
+		CancellationToken cancellationToken)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
 		string countriesJson = SerializeCountries(countries);
@@ -71,10 +73,10 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>Fetch the certificates issued for verification <paramref name="id"/>.</summary>
-	public async Task<CertificatesOutcome> GetCertificates(
-		KycProvider provider,
+	internal async Task<CertificatesOutcome> GetCertificates(
+		KycProviderInfo provider,
 		string id,
-		CancellationToken cancellationToken = default)
+		CancellationToken cancellationToken)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
 		byte[] payload = await Runtime
@@ -85,15 +87,14 @@ public sealed class KycClient : WasmObject
 	}
 
 	/// <summary>Parse <paramref name="provider"/>'s advertised issuer CA certificate.</summary>
-	/// <remarks>Use it as a trusted root when verifying an issued <see cref="Crypto.KycCertificate"/>.</remarks>
-	public Crypto.Certificate GetCA(KycProvider provider) =>
+	internal Crypto.Certificate GetCA(KycProviderInfo provider) =>
 		Runtime.Certificates.Parse(provider.Ca);
 
 	/// <summary>Read the status of verification <paramref name="id"/>.</summary>
-	public async Task<StatusOutcome> GetVerificationStatus(
-		KycProvider provider,
+	internal async Task<StatusOutcome> GetVerificationStatus(
+		KycProviderInfo provider,
 		string id,
-		CancellationToken cancellationToken = default)
+		CancellationToken cancellationToken)
 	{
 		string providerJson = JsonSerializer.Serialize(provider, KeetaJson.Options);
 		byte[] payload = await Runtime
@@ -101,6 +102,17 @@ public sealed class KycClient : WasmObject
 			.ConfigureAwait(false);
 
 		return ParseOutcome<VerificationStatus, StatusOutcome>(payload, "status", ready => new StatusOutcome(ready, null), retry => new StatusOutcome(null, retry));
+	}
+
+	/// <summary>The raw discovery payload decoded to metadata snapshots.</summary>
+	private async Task<IReadOnlyList<KycProviderInfo>> GetProviderInfos(
+		IEnumerable<string> countries,
+		CancellationToken cancellationToken)
+	{
+		string countriesJson = SerializeCountries(countries);
+
+		byte[] payload = await Runtime.KycProviders(Handle, countriesJson, cancellationToken).ConfigureAwait(false);
+		return KeetaJson.ReadList<KycProviderInfo>(payload);
 	}
 
 	private static string SerializeCountries(IEnumerable<string> countries) =>

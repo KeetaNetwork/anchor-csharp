@@ -23,18 +23,138 @@ public enum AssetEndpointAuth
 public sealed record AssetEndpoint(string Url, AssetEndpointAuth Auth);
 
 /// <summary>
-/// An asset-movement provider discovered from on-chain service metadata. The
+/// An asset-movement provider's advertised metadata, discovered from on-chain
+/// service metadata (the reference <c>AssetMovementProviderInfo</c>). The
 /// polymorphic <see cref="SupportedAssets"/>, <see cref="LocationMetadata"/>, and
 /// <see cref="Legal"/> members are carried as raw JSON so the value round-trips
-/// unchanged when handed back to an operation.
+/// unchanged when handed back to an operation. Operations live on the
+/// <see cref="AssetProvider"/> handle bound through
+/// <see cref="AssetMovementClient.Provider"/>.
 /// </summary>
-public sealed record AssetProvider(
+public sealed record AssetProviderInfo(
 	string Id,
 	IReadOnlyDictionary<string, AssetEndpoint> Operations,
 	IReadOnlyList<JsonElement>? SupportedAssets = null,
 	JsonElement? LocationMetadata = null,
 	JsonElement? Legal = null,
-	string? Account = null);
+	string? Account = null)
+{
+	/// <summary>
+	/// Whether this provider advertises the <paramref name="operation"/>
+	/// endpoint (e.g. <c>initiateTransfer</c>, <c>createPersistentForwarding</c>).
+	/// </summary>
+	public bool IsOperationSupported(string operation) => Operations.ContainsKey(operation);
+
+	/// <summary>
+	/// The advertised legal disclaimers, or null when the metadata carries
+	/// none. Malformed entries are skipped.
+	/// </summary>
+	public IReadOnlyList<AssetDisclaimer>? GetLegalDisclaimers()
+	{
+		if (Legal is not { } legal
+			|| legal.ValueKind != JsonValueKind.Object
+			|| !legal.TryGetProperty("disclaimers", out JsonElement entries)
+			|| entries.ValueKind != JsonValueKind.Array)
+		{
+			return null;
+		}
+
+		var disclaimers = new List<AssetDisclaimer>();
+		using JsonElement.ArrayEnumerator enumerated = entries.EnumerateArray();
+		foreach (JsonElement entry in enumerated)
+		{
+			if (TryDeserialize(entry, out AssetDisclaimer? disclaimer))
+			{
+				disclaimers.Add(disclaimer!);
+			}
+		}
+
+		return disclaimers;
+	}
+
+	/// <summary>
+	/// The identifying details published under <c>legal.anchorDetails</c>, or
+	/// null when the metadata carries none. A malformed description is dropped
+	/// while the name and logo are kept.
+	/// </summary>
+	public AssetAnchorDetails? GetAnchorDetails()
+	{
+		if (Legal is not { } legal
+			|| legal.ValueKind != JsonValueKind.Object
+			|| !legal.TryGetProperty("anchorDetails", out JsonElement details)
+			|| details.ValueKind != JsonValueKind.Object)
+		{
+			return null;
+		}
+
+		string? name = ReadOptionalString(details, "name");
+		string? logo = ReadOptionalString(details, "logo");
+
+		AssetRenderableContent? description = null;
+		if (details.TryGetProperty("description", out JsonElement rawDescription))
+		{
+			TryDeserialize(rawDescription, out description);
+		}
+
+		return new AssetAnchorDetails(name, description, logo);
+	}
+
+	/// <summary>
+	/// The display metadata for <paramref name="asset"/> (an external chain
+	/// asset id) at <paramref name="location"/> (a canonical location string),
+	/// or null when the provider advertises none or the entry does not parse.
+	/// </summary>
+	public AssetTokenMetadata? GetAssetMetadataForLocation(string location, string asset)
+	{
+		if (LocationMetadata is not { } metadata || metadata.ValueKind != JsonValueKind.Object)
+		{
+			return null;
+		}
+
+		if (!metadata.TryGetProperty(location, out JsonElement forLocation)
+			|| forLocation.ValueKind != JsonValueKind.Object
+			|| !forLocation.TryGetProperty("assets", out JsonElement assets)
+			|| assets.ValueKind != JsonValueKind.Object)
+		{
+			return null;
+		}
+
+		if (!assets.TryGetProperty(asset, out JsonElement found)
+			|| !TryDeserialize(found, out AssetTokenMetadata? parsed))
+		{
+			return null;
+		}
+
+		return parsed;
+	}
+
+	/// <summary>Deserialize one metadata entry, treating malformed JSON as absent.</summary>
+	private static bool TryDeserialize<T>(JsonElement element, out T? value)
+		where T : class
+	{
+		try
+		{
+			value = element.Deserialize<T>(KeetaJson.Options);
+		}
+		catch (JsonException)
+		{
+			value = null;
+		}
+
+		return value is not null;
+	}
+
+	/// <summary>The member's string value, or null when absent or not a string.</summary>
+	private static string? ReadOptionalString(JsonElement element, string name)
+	{
+		if (!element.TryGetProperty(name, out JsonElement found) || found.ValueKind != JsonValueKind.String)
+		{
+			return null;
+		}
+
+		return found.GetString();
+	}
+}
 
 /// <summary>Pagination bounds shared by the list operations.</summary>
 public sealed record AssetPagination(uint? Limit = null, uint? Offset = null);
