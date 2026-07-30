@@ -138,7 +138,30 @@ internal sealed class LedgerNode
 		var arguments = new JsonObject { ["account"] = account };
 		return _harness.Request("head", arguments).GetProperty("head").GetString();
 	}
+
+	/// <summary>
+	/// Have the reference issue a CA and a leaf for the seed-derived holder.
+	/// The reference builder emits the CA extensions the node's certificate
+	/// graph check demands, which the core's KYC builder omits.
+	/// </summary>
+	public IssuedChain IssueChain(string seed)
+	{
+		var arguments = new JsonObject
+		{
+			["seed"] = seed,
+			["algorithm"] = "secp256k1",
+		};
+		JsonElement issued = _harness.Request("issueChain", arguments);
+
+		return new IssuedChain(
+			issued.GetProperty("ca").GetString()!,
+			issued.GetProperty("leaf").GetString()!,
+			issued.GetProperty("leafHash").GetString()!);
+	}
 }
+
+/// <summary>A reference-issued CA and holder leaf, as PEM strings.</summary>
+internal sealed record IssuedChain(string Ca, string Leaf, string LeafHash);
 
 /// <summary>
 /// A live asset-movement anchor HTTP server started by the harness, alongside

@@ -96,6 +96,8 @@ public sealed class LifecycleTests
 
 #if DEBUG
 	[Fact]
+	[SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP017:Prefer using",
+		Justification = "Explicit dispose so the counter can be observed before and after.")]
 	public void LeakCounterFlagsForgottenDispose()
 	{
 		using var runtime = WasmRuntime.Load();

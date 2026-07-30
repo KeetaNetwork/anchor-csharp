@@ -230,6 +230,47 @@ public sealed class UserClient : IDisposable
 	}
 
 	/// <summary>
+	/// Add or remove <paramref name="certificate"/> on the operating account,
+	/// the reference <c>modifyCertificate</c>. An add records
+	/// <paramref name="intermediates"/> alongside the certificate; a
+	/// subtract retires it by its hash and ignores them.
+	/// </summary>
+	public async Task<bool> ModifyCertificate(
+		Crypto.AdjustMethod method,
+		Crypto.Certificate certificate,
+		IReadOnlyList<Crypto.Certificate>? intermediates = null,
+		TransmitOptions? options = null,
+		CancellationToken cancellationToken = default)
+	{
+		if (method == Crypto.AdjustMethod.Subtract)
+		{
+			return await ModifyCertificate(method, certificate.Hash, options, cancellationToken).ConfigureAwait(false);
+		}
+
+		RequireAdjust(method, Crypto.AdjustMethod.Add);
+		using Crypto.BlockOperation add = _runtime.Blocks.ManageCertificateAdd(certificate, intermediates);
+
+		return await BuildAndTransmit(add, options, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
+	/// Remove the operating account's published certificate addressed by
+	/// <paramref name="hash"/>. Only <see cref="Crypto.AdjustMethod.Subtract"/>
+	/// applies: an add needs the certificate itself.
+	/// </summary>
+	public async Task<bool> ModifyCertificate(
+		Crypto.AdjustMethod method,
+		Crypto.CertificateHash hash,
+		TransmitOptions? options = null,
+		CancellationToken cancellationToken = default)
+	{
+		RequireAdjust(method, Crypto.AdjustMethod.Subtract);
+		using Crypto.BlockOperation remove = _runtime.Blocks.ManageCertificateRemove(hash);
+
+		return await BuildAndTransmit(remove, options, cancellationToken).ConfigureAwait(false);
+	}
+
+	/// <summary>
 	/// Publish the operating account's on-chain info.
 	/// <paramref name="defaultPermission"/> is required for identifier accounts.
 	/// </summary>
@@ -296,6 +337,17 @@ public sealed class UserClient : IDisposable
 		}
 
 		return resolved;
+	}
+
+	/// <summary>Reject any certificate adjust method other than <paramref name="expected"/>.</summary>
+	private static void RequireAdjust(Crypto.AdjustMethod method, Crypto.AdjustMethod expected)
+	{
+		if (method != expected)
+		{
+			throw new KeetaException(
+				"ADJUST_METHOD",
+				$"certificates support add and subtract; this overload handles {expected}");
+		}
 	}
 
 	/// <summary>The bound signer, required by every write.</summary>

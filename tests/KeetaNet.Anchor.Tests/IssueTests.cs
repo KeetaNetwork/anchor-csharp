@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using KeetaNet.Anchor.Crypto;
 using Xunit;
+using CryptoCertificate = KeetaNet.Anchor.Crypto.Certificate;
 
 namespace KeetaNet.Anchor.Tests;
 
@@ -56,6 +57,39 @@ public sealed class IssueTests
 		Assert.True(parsed.IsValidAt(TestSeeds.NotBefore.AddDays(1)));
 		Assert.False(parsed.IsValidAt(TestSeeds.NotBefore.AddDays(-1)));
 		Assert.False(parsed.IsValidAt(TestSeeds.NotAfter.AddDays(1)));
+	}
+
+	[Fact]
+	public void TheNativeX509BridgeRoundTripsBothCertificateTypes()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, "ecdsa_secp256k1");
+
+		using KycCertificate leaf = runtime.KycCertificates.Builder()
+			.Subject(subject)
+			.Issuer(issuer)
+			.SubjectName("Subject")
+			.IssuerName("Issuer")
+			.Serial(7)
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
+			.Build();
+		using CryptoCertificate baseCertificate = leaf.Base();
+
+		// The native view agrees with the core on identity and validity.
+		using var native = baseCertificate.ToX509Certificate();
+		Assert.Contains("Subject", native.Subject, StringComparison.Ordinal);
+		Assert.Contains("Issuer", native.Issuer, StringComparison.Ordinal);
+		Assert.Equal(TestSeeds.NotBefore, new DateTimeOffset(native.NotBefore.ToUniversalTime()));
+		Assert.Equal(TestSeeds.NotAfter, new DateTimeOffset(native.NotAfter.ToUniversalTime()));
+
+		// The KYC leaf bridges through its base to the identical bytes.
+		using var fromLeaf = leaf.ToX509Certificate();
+		Assert.Equal(native.RawData, fromLeaf.RawData);
+
+		// Adopting the native certificate back yields the same ledger hash.
+		using CryptoCertificate adopted = runtime.Certificates.Parse(native);
+		Assert.Equal(baseCertificate.Hash, adopted.Hash);
 	}
 
 	[Fact]

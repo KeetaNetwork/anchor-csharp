@@ -23,4 +23,8 @@ public sealed class CertificateFactory
 		int handle = _runtime.CertificateParseDer(der);
 		return new(_runtime, handle);
 	}
+
+	/// <summary>Adopt a native .NET certificate as a core-owned <see cref="Certificate"/>.</summary>
+	public Certificate Parse(System.Security.Cryptography.X509Certificates.X509Certificate2 certificate) =>
+		ParseDer(certificate.RawData);
 }

@@ -1,6 +1,9 @@
 using KeetaNet.Anchor.Crypto;
 using Xunit;
 
+// `Certificate` also names the published-record DTO in `KeetaNet.Anchor`.
+using CryptoCertificate = KeetaNet.Anchor.Crypto.Certificate;
+
 namespace KeetaNet.Anchor.Tests;
 
 /// <summary>
@@ -248,6 +251,68 @@ public sealed class BlockTests
 		KeetaException refusedPublish = await Assert.ThrowsAsync<KeetaException>(
 			() => readOnly.Publish(external, options, TestContext.Current.CancellationToken));
 		Assert.Equal("SIGNER_REQUIRED", refusedPublish.Code);
+	}
+
+	[Fact]
+	public void CertificateOperationsBuildIntoASignedBlock()
+	{
+		using var runtime = WasmRuntime.Load();
+		using Account subject = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
+		using Account issuer = runtime.Accounts.FromSeed(TestSeeds.Issuer, 0, TestSeeds.DefaultAlgorithm);
+
+		using KycCertificate authority = runtime.KycCertificates.Builder()
+			.Subject(issuer)
+			.Issuer(issuer)
+			.SubjectName("Authority")
+			.IssuerName("Authority")
+			.Serial(1)
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
+			.AsCertificateAuthority()
+			.Build();
+		using KycCertificate leaf = runtime.KycCertificates.Builder()
+			.Subject(subject)
+			.Issuer(issuer)
+			.SubjectName("Leaf")
+			.IssuerName("Authority")
+			.Serial(2)
+			.Validity(TestSeeds.NotBefore, TestSeeds.NotAfter)
+			.Build();
+
+		using CryptoCertificate leafBase = leaf.Base();
+		using CryptoCertificate authorityBase = authority.Base();
+
+		using BlockOperation add = runtime.Blocks.ManageCertificateAdd(leafBase, new[] { authorityBase });
+		using BlockOperation remove = runtime.Blocks.ManageCertificateRemove(leafBase.Hash);
+
+		// The core forbids adding and removing the same certificate in one
+		// block, so the add and the remove live in a chained pair.
+		using var opening = runtime.Blocks.NewBuilder();
+		opening
+			.WithVersion(2)
+			.WithNetwork(Network)
+			.WithAccount(subject)
+			.WithSigner(subject)
+			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000))
+			.AsOpening()
+			.AddOperation(add);
+
+		using Block added = opening.Build();
+		using Block addedDecoded = runtime.Blocks.ParseHex(Convert.ToHexString(added.ToBytes()));
+		Assert.Equal(added.Hash, addedDecoded.Hash);
+
+		using var successor = runtime.Blocks.NewBuilder();
+		successor
+			.WithVersion(2)
+			.WithNetwork(Network)
+			.WithAccount(subject)
+			.WithSigner(subject)
+			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_060_000))
+			.WithPrevious(added.Hash)
+			.AddOperation(remove);
+
+		using Block removed = successor.Build();
+		using Block removedDecoded = runtime.Blocks.ParseHex(Convert.ToHexString(removed.ToBytes()));
+		Assert.Equal(removed.Hash, removedDecoded.Hash);
 	}
 
 	[Fact]

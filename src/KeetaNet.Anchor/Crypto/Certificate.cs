@@ -1,3 +1,5 @@
+using System.Security.Cryptography.X509Certificates;
+
 namespace KeetaNet.Anchor.Crypto;
 
 /// <summary>
@@ -64,6 +66,19 @@ public sealed class Certificate : WasmObject
 	/// <see cref="KeetaClient.GetCertificateByHash(Account, CertificateHash, CancellationToken)"/>.
 	/// </summary>
 	public CertificateHash Hash => CertificateHash.Parse(Runtime.CertificateHash(Convert.ToHexString(ToDer())));
+
+	/// <summary>
+	/// The certificate as the native .NET X.509 type, for inspection and
+	/// platform interop. Representation only: chain trust must be evaluated
+	/// by the core (<see cref="KycCertificate.Verify"/>), which understands
+	/// the reference's signature algorithms where .NET does not.
+	/// </summary>
+	public X509Certificate2 ToX509Certificate() =>
+#if NET9_0_OR_GREATER
+		X509CertificateLoader.LoadCertificate(ToDer());
+#else
+		new(ToDer());
+#endif
 
 	private protected override void Release(WasmRuntime runtime, int handle) => runtime.CertificateFree(handle);
 }

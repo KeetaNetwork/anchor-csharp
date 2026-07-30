@@ -87,6 +87,32 @@ public sealed class BlockFactory
 		return new BlockOperation(_runtime, handle);
 	}
 
+	/// <summary>
+	/// A <c>MANAGE_CERTIFICATE</c> add operation publishing
+	/// <paramref name="certificate"/> on-chain, recording
+	/// <paramref name="intermediates"/> alongside it as its bundle.
+	/// </summary>
+	public BlockOperation ManageCertificateAdd(Certificate certificate, IReadOnlyList<Certificate>? intermediates = null)
+	{
+		string der = Convert.ToHexString(certificate.ToDer());
+		string joined = string.Join(
+			'\n',
+			(intermediates ?? Array.Empty<Certificate>()).Select(bundled => Convert.ToHexString(bundled.ToDer())));
+		int handle = _runtime.OpManageCertificateAdd(der, joined);
+
+		return new BlockOperation(_runtime, handle);
+	}
+
+	/// <summary>
+	/// A <c>MANAGE_CERTIFICATE</c> remove operation retiring the published
+	/// certificate addressed by <paramref name="hash"/>.
+	/// </summary>
+	public BlockOperation ManageCertificateRemove(CertificateHash hash)
+	{
+		int handle = _runtime.OpManageCertificateRemove(hash.ToString());
+		return new BlockOperation(_runtime, handle);
+	}
+
 	/// <summary>A <c>CREATE_IDENTIFIER</c> operation claiming <paramref name="identifier"/>.</summary>
 	public BlockOperation CreateIdentifier(Account identifier)
 	{
