@@ -4,6 +4,9 @@ using System.Text.Json;
 using KeetaNet.Anchor.Crypto;
 using Xunit;
 
+// `Certificate` also names the published-record DTO in `KeetaNet.Anchor`.
+using CryptoCertificate = KeetaNet.Anchor.Crypto.Certificate;
+
 namespace KeetaNet.Anchor.E2eTests;
 
 /// <summary>
@@ -349,6 +352,51 @@ public sealed class NodeFlowTests
 
 		AccountState afterClaim = await user.GetState(cancellationToken);
 		Assert.NotEqual(beforeClaim.HeadBlock, afterClaim.HeadBlock);
+
+		harness.Shutdown();
+	}
+
+	[Fact]
+	public async Task CertificateWritesRoundTripAgainstTheLiveNode()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("node");
+		LedgerNode node = LedgerNode.Start(harness);
+
+		using var runtime = WasmRuntime.Load();
+		using Account holder = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using UserClient user = runtime.CreateUserClient(node.Api, holder, network: node.Network);
+
+		node.Fund(E2eSeeds.Subject, Funding);
+
+		// A reference-issued chain for the holder: the node's graph check
+		// demands the CA extensions only the reference builder emits.
+		IssuedChain issued = node.IssueChain(E2eSeeds.Subject);
+		using CryptoCertificate leaf = runtime.Certificates.Parse(issued.Leaf);
+		using CryptoCertificate authority = runtime.Certificates.Parse(issued.Ca);
+		Assert.Equal(CertificateHash.Parse(issued.LeafHash), leaf.Hash);
+
+		// The add publishes the leaf with the authority recorded as its
+		// bundle, and the account's certificate reads serve both back.
+		Assert.True(await user.ModifyCertificate(
+			AdjustMethod.Add, leaf, new[] { authority }, cancellationToken: cancellationToken));
+
+		IReadOnlyList<Certificate> published = await user.GetAllCertificates(cancellationToken);
+		Certificate record = Assert.Single(published);
+		using (CryptoCertificate readBack = runtime.Certificates.Parse(record.Value))
+		{
+			Assert.Equal(leaf.Hash, readBack.Hash);
+		}
+
+		Assert.Single(record.Intermediates);
+		Assert.NotNull(await user.GetCertificateByHash(leaf.Hash, cancellationToken));
+
+		// The subtract retires the leaf by its hash; the reads empty out.
+		Assert.True(await user.ModifyCertificate(
+			AdjustMethod.Subtract, leaf, cancellationToken: cancellationToken));
+
+		Assert.Empty(await user.GetAllCertificates(cancellationToken));
+		Assert.Null(await user.GetCertificateByHash(leaf.Hash, cancellationToken));
 
 		harness.Shutdown();
 	}

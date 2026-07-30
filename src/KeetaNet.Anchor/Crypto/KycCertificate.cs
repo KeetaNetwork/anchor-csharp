@@ -50,6 +50,16 @@ public sealed class KycCertificate : WasmObject
 		return new(Runtime, handle);
 	}
 
+	/// <summary>
+	/// The leaf as the native .NET X.509 type, through its base certificate.
+	/// See <see cref="Certificate.ToX509Certificate"/> for the trust caveat.
+	/// </summary>
+	public System.Security.Cryptography.X509Certificates.X509Certificate2 ToX509Certificate()
+	{
+		using Certificate baseCertificate = Base();
+		return baseCertificate.ToX509Certificate();
+	}
+
 	/// <summary>Whether the certificate is valid at <paramref name="moment"/>.</summary>
 	public bool IsValidAt(DateTimeOffset moment)
 	{

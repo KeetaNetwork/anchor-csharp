@@ -6,11 +6,17 @@
  * node client can read every surface back over the real node API.
  */
 
+import type * as KeetaNetModule from '@keetanetwork/keetanet-client';
+
 import type { ChainNode, SigningAccount } from './chain.js';
 import type { HarnessResponse } from './core.js';
 import { accountFromSeed } from './accounts.js';
 import { bootChainNode } from './chain.js';
-import { runHarness } from './core.js';
+import { referenceResolver, runHarness } from './core.js';
+
+const KeetaNet = referenceResolver().client<typeof KeetaNetModule>();
+const Account = KeetaNet.lib.Account;
+const CertificateBuilder = KeetaNet.lib.Utils.Certificate.CertificateBuilder;
 
 /** The running reference node, if any. */
 let chain: ChainNode | undefined;
@@ -56,6 +62,18 @@ interface HeadRequest {
 	account: string;
 }
 
+/**
+ * Issue a reference CA and a leaf for the seed-derived holder, so a binding
+ * can publish a node-valid bundle through its own write path. The reference
+ * builder emits the CA extensions (basic constraints, key identifiers) that
+ * the node's certificate graph check demands.
+ */
+interface IssueChainRequest {
+	cmd: 'issueChain';
+	seed: string;
+	algorithm?: string;
+}
+
 interface ShutdownRequest {
 	cmd: 'shutdown';
 }
@@ -66,6 +84,7 @@ type NodeRequest =
 	SetInfoRequest |
 	SetRepRequest |
 	HeadRequest |
+	IssueChainRequest |
 	ShutdownRequest;
 
 function running(): ChainNode {
@@ -154,6 +173,37 @@ async function handleHead(request: HeadRequest): Promise<HarnessResponse> {
 	});
 }
 
+async function handleIssueChain(request: IssueChainRequest): Promise<HarnessResponse> {
+	const holder = signer(request);
+	const caAccount = Account.fromSeed(Account.generateRandomSeed(), 0);
+	const validFrom = new Date(Date.now() - 30_000);
+	const validTo = new Date(Date.now() + (60 * 60 * 1000));
+
+	// Self-signed, so the reference builder marks it a CA automatically.
+	const ca = await new CertificateBuilder({
+		subjectPublicKey: caAccount,
+		issuer: caAccount,
+		serial: 1,
+		validFrom,
+		validTo
+	}).build();
+
+	const leaf = await new CertificateBuilder({
+		subjectPublicKey: holder,
+		issuer: caAccount,
+		serial: 2,
+		validFrom,
+		validTo
+	}).build();
+
+	return({
+		event: 'chain-issued',
+		ca: ca.toPEM(),
+		leaf: leaf.toPEM(),
+		leafHash: leaf.hash().toString()
+	});
+}
+
 async function handle(request: NodeRequest): Promise<HarnessResponse> {
 	switch (request.cmd) {
 		case 'startNode': return(await handleStartNode());
@@ -161,6 +211,7 @@ async function handle(request: NodeRequest): Promise<HarnessResponse> {
 		case 'setInfo': return(await handleSetInfo(request));
 		case 'setRep': return(await handleSetRep(request));
 		case 'head': return(await handleHead(request));
+		case 'issueChain': return(await handleIssueChain(request));
 		case 'shutdown': return({ event: 'shutdown' });
 	}
 }

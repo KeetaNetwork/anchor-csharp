@@ -138,6 +138,31 @@ public sealed partial class WasmRuntime
 			return TakeHandle(result);
 		});
 
+	internal int OpManageCertificateAdd(string certificateDerHex, string intermediatesJoined) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument certificate = arguments.Write(certificateDerHex);
+			Argument intermediates = arguments.Write(intermediatesJoined);
+
+			int result = Invoke<int, int, int, int, int>(
+				"keeta_op_manage_certificate_add",
+				certificate.Pointer, certificate.Length,
+				intermediates.Pointer, intermediates.Length);
+			return TakeHandle(result);
+		});
+
+	internal int OpManageCertificateRemove(string hashHex) =>
+		Run(() =>
+		{
+			using var arguments = new ArgumentScope(this);
+			Argument hash = arguments.Write(hashHex);
+
+			int result = Invoke<int, int, int>(
+				"keeta_op_manage_certificate_remove", hash.Pointer, hash.Length);
+			return TakeHandle(result);
+		});
+
 	internal int OpCreateIdentifier(int identifier) =>
 		Run(() => TakeHandle(Invoke<int, int>("keeta_op_create_identifier", identifier)));
 
