@@ -41,6 +41,8 @@ export interface ChainNode {
 	node: ReferenceNode;
 	/* The node API base URL, e.g. `http://127.0.0.1:<port>`. */
 	api: string;
+	/* The node P2P WebSocket URL, e.g. `ws://127.0.0.1:<port>`. */
+	p2p: string;
 	/* A UserClient for the funded representative account. */
 	repClient: UserClient;
 	/* Send `amount` of the base token to `account`. */
@@ -66,6 +68,7 @@ export async function bootChainNode(): Promise<ChainNode> {
 
 	const node = await nodeTesting.createTestNode(repNodeAccount, {
 		createInitialVoteStaple: false,
+		enableP2P: true,
 		nodeConfig: { nodeAlias: 'TEST' },
 		ledger: {
 			computeFeeFromBlocks: function(_ignore_ledger, _ignore_blocks, _ignore_effects) {
@@ -136,5 +139,5 @@ export async function bootChainNode(): Promise<ChainNode> {
 		return(rootAccount.publicKeyString.get());
 	};
 
-	return({ node, api: endpoints.api, repClient, give, publish, clientFor });
+	return({ node, api: endpoints.api, p2p: endpoints.p2p, repClient, give, publish, clientFor });
 }
