@@ -90,7 +90,7 @@ public sealed class KycFlowTests
 		using KeetaClient client = runtime.CreateKeetaClient(anchor.NodeApi);
 
 		// An account that never published anything reads back as an empty list.
-		// The Account overload resolves the address itself, as the reference does.
+		// The Account overload resolves the address itself.
 		IReadOnlyList<Certificate> none = await client.GetAllCertificates(observer, cancellationToken);
 		Assert.Empty(none);
 
@@ -116,8 +116,8 @@ public sealed class KycFlowTests
 		using CryptoCertificate publishedLeaf = runtime.Certificates.Parse(chain.Leaf);
 		Assert.Equal(CertificateHash.Parse(chain.LeafHash), publishedLeaf.Hash);
 
-		// The leaf is individually addressable by its hash, intermediates
-		// intact. An unpublished hash resolves to null, as the reference does.
+		// The leaf is individually addressable by its hash, with its
+		// intermediates intact. An unpublished hash resolves to null.
 		Certificate? byHash = await client.GetCertificateByHash(holder, publishedLeaf.Hash, cancellationToken);
 		Assert.NotNull(byHash);
 		AssertSameCertificate(runtime, chain.Leaf, byHash!.Value);
@@ -140,7 +140,7 @@ public sealed class KycFlowTests
 		using var runtime = WasmRuntime.Load();
 		using KeetaClient client = runtime.CreateKeetaClient(anchor.NodeApi);
 
-		string version = await client.GetNodeVersion(cancellationToken);
+		string version = await client.GetVersion(cancellationToken);
 		Assert.NotEmpty(version);
 
 		// The chain holder was funded with base tokens before publishing (fees
@@ -149,19 +149,19 @@ public sealed class KycFlowTests
 		PublishedChain chain = PublishedChain.Publish(harness);
 		using Account holder = runtime.Accounts.FromPublicKeyString(chain.Account);
 
-		AccountState state = await client.GetAccountState(holder, cancellationToken);
+		AccountState state = await client.GetAccountInfo(holder, cancellationToken);
 		Assert.NotNull(state.HeadBlock);
 		TokenBalance funding = Assert.Single(state.Balances);
 		Assert.True(funding.Balance > BigInteger.Zero);
 
-		IReadOnlyList<TokenBalance> balances = await client.GetAccountBalances(holder, cancellationToken);
+		IReadOnlyList<TokenBalance> balances = await client.GetAllBalances(holder, cancellationToken);
 		TokenBalance listed = Assert.Single(balances);
 		Assert.Equal(funding.Token.PublicKeyString, listed.Token.PublicKeyString);
 		Assert.Equal(funding.Balance, listed.Balance);
 
 		// The token account the state read returned round-trips as the typed
 		// argument of the direct balance read.
-		BigInteger direct = await client.GetAccountBalance(holder, funding.Token, cancellationToken);
+		BigInteger direct = await client.GetBalance(holder, funding.Token, cancellationToken);
 		Assert.Equal(funding.Balance, direct);
 
 		harness.Shutdown();

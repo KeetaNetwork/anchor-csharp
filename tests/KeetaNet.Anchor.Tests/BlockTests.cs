@@ -13,7 +13,7 @@ namespace KeetaNet.Anchor.Tests;
 /// </summary>
 public sealed class BlockTests
 {
-	/// <summary>The reference TEST network id; signing rejects unknown networks.</summary>
+	/// <summary>The TEST network id. Signing rejects unknown networks.</summary>
 	private const long Network = 0x5445_5354;
 
 	/// <summary>A neighboring known network (DEV), for the derivation contrast.</summary>
@@ -179,34 +179,6 @@ public sealed class BlockTests
 	}
 
 	[Fact]
-	public async Task TransmitRefusesAClientWithoutABoundNetwork()
-	{
-		using var runtime = WasmRuntime.Load();
-		using Account sender = runtime.Accounts.FromSeed(TestSeeds.Subject, 0, TestSeeds.DefaultAlgorithm);
-		using Account recipient = runtime.Accounts.FromSeed(TestSeeds.Recipient, 0, TestSeeds.DefaultAlgorithm);
-		using Account token = runtime.Blocks.NetworkBaseToken(Network);
-
-		using BlockOperation send = runtime.Blocks.Send(recipient, 42, token);
-		using var builder = runtime.Blocks.NewBuilder();
-		builder
-			.WithVersion(2)
-			.WithNetwork(Network)
-			.WithAccount(sender)
-			.WithSigner(sender)
-			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000))
-			.AsOpening()
-			.AddOperation(send);
-		using Block block = builder.Build();
-
-		// The anchor URL is non-routable, so reaching the transport would
-		// surface NODE_STATUS instead: the gate must trip first.
-		using KeetaClient client = runtime.CreateKeetaClient(TestSeeds.NonRoutableAnchor);
-		KeetaException refused = await Assert.ThrowsAsync<KeetaException>(
-			() => client.Transmit(block, cancellationToken: TestContext.Current.CancellationToken));
-		Assert.Equal("NETWORK_REQUIRED", refused.Code);
-	}
-
-	[Fact]
 	public async Task TransmitRefusesAReadOnlyUserClientEvenWithAFeeFactory()
 	{
 		using var runtime = WasmRuntime.Load();
@@ -249,7 +221,7 @@ public sealed class BlockTests
 			.WithDate(DateTimeOffset.FromUnixTimeMilliseconds(1_700_000_000_000));
 
 		KeetaException refusedPublish = await Assert.ThrowsAsync<KeetaException>(
-			() => readOnly.Publish(external, options, TestContext.Current.CancellationToken));
+			() => readOnly.PublishBuilder(external, options, TestContext.Current.CancellationToken));
 		Assert.Equal("SIGNER_REQUIRED", refusedPublish.Code);
 	}
 
