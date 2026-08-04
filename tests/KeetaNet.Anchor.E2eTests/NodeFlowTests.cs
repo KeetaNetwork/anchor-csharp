@@ -574,6 +574,75 @@ public sealed class NodeFlowTests
 	}
 
 	[Fact]
+	public async Task TokenSetupSupplyAndSendRoundTripAgainstTheLiveNode()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("node");
+		LedgerNode node = LedgerNode.Start(harness);
+
+		using var runtime = WasmRuntime.Load();
+		using Account holder = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using UserClient user = runtime.CreateUserClient(node.Api, holder, network: node.Network);
+		KeetaClient client = user.Client;
+
+		node.Fund(E2eSeeds.Subject, Funding);
+
+		// The one-call claim creates the token identifier under the holder.
+		using Account token = await user.GenerateIdentifier(IdentifierKind.Token, cancellationToken: cancellationToken);
+
+		// The setup block opens the token's own chain, signed by the owner:
+		// info with a public default permission, then the initial supply.
+		string metadata = Convert.ToBase64String("{\"decimalPlaces\":10}"u8.ToArray());
+		using Permissions access = runtime.Blocks.PermissionsFromFlags(new[] { BaseFlag.Access });
+		using BlockOperation setInfo = runtime.Blocks.SetInfo("TKNA", "Example Token", metadata, access);
+		using BlockOperation supply = runtime.Blocks.TokenAdminSupply(50_000, AdjustMethod.Add);
+
+		using BlockBuilder setupBuilder = runtime.Blocks.NewBuilder();
+		setupBuilder
+			.WithVersion(2)
+			.WithNetwork(node.Network)
+			.WithAccount(token)
+			.WithSigner(holder)
+			.WithDate(DateTimeOffset.UtcNow)
+			.AsOpening()
+			.AddOperation(setInfo)
+			.AddOperation(supply);
+		using Block setup = setupBuilder.Build();
+
+		// The send distributes part of the fresh supply from the token to the
+		// holder, chained atop the setup block.
+		using BlockOperation send = runtime.Blocks.Send(holder, 200, token);
+		using BlockBuilder sendBuilder = runtime.Blocks.NewBuilder();
+		sendBuilder
+			.WithVersion(2)
+			.WithNetwork(node.Network)
+			.WithAccount(token)
+			.WithSigner(holder)
+			.WithDate(DateTimeOffset.UtcNow)
+			.WithPrevious(setup.Hash)
+			.AddOperation(send);
+		using Block distribute = sendBuilder.Build();
+
+		// Both blocks ride one transmit. The holder pays the demanded fee.
+		Assert.True(await client.Transmit(
+			new[] { setup, distribute },
+			TransmitOptions.WithFeeSigner(holder),
+			cancellationToken));
+
+		// The reads confirm the info, the supply, and the distribution.
+		AccountState tokenState = await client.GetAccountInfo(token, cancellationToken);
+		Assert.Equal("TKNA", tokenState.Info?.Name);
+		Assert.Equal("Example Token", tokenState.Info?.Description);
+		Assert.Equal(metadata, tokenState.Info?.Metadata);
+		Assert.Equal(new BigInteger(50_000), tokenState.Info?.Supply);
+
+		BigInteger distributed = await client.GetBalance(holder, token, cancellationToken);
+		Assert.Equal(new BigInteger(200), distributed);
+
+		harness.Shutdown();
+	}
+
+	[Fact]
 	public async Task CertificateWritesRoundTripAgainstTheLiveNode()
 	{
 		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
