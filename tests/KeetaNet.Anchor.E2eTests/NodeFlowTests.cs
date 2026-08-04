@@ -161,12 +161,12 @@ public sealed class NodeFlowTests
 		BigInteger credited = await client.GetBalance(recipient, baseToken, cancellationToken);
 		Assert.Equal(new BigInteger(Amount), credited);
 
-		BigInteger remaining = await user.Balance(baseToken, cancellationToken);
+		BigInteger remaining = await user.GetBalance(baseToken, cancellationToken);
 		Assert.Equal(new BigInteger(Funding) - Amount - RoundFee, remaining);
 
 		// The fee block chained atop the send, so the holder's head advanced
 		// past the send block and must match the reference client's.
-		AccountState state = await user.State(cancellationToken);
+		AccountState state = await user.GetState(cancellationToken);
 		Assert.NotNull(state.HeadBlock);
 
 		string? referenceHead = node.Head(holder.PublicKeyString);
@@ -176,10 +176,10 @@ public sealed class NodeFlowTests
 		// The SET_REP chains atop the advanced head and costs one more fee.
 		Assert.True(await user.SetRep(recipient, cancellationToken: cancellationToken));
 
-		state = await user.State(cancellationToken);
+		state = await user.GetState(cancellationToken);
 		Assert.Equal(recipient.PublicKeyString, state.Representative!.PublicKeyString);
 		remaining -= RoundFee;
-		Assert.Equal(remaining, await user.Balance(baseToken, cancellationToken));
+		Assert.Equal(remaining, await user.GetBalance(baseToken, cancellationToken));
 
 		// A fee-less transmit against the fee-enforcing node refuses with the
 		// typed FEE_REQUIRED before anything is published. The refusal leaves
@@ -214,7 +214,7 @@ public sealed class NodeFlowTests
 		}
 
 		// No refusal advanced either chain.
-		Assert.Equal(remaining, await user.Balance(baseToken, cancellationToken));
+		Assert.Equal(remaining, await user.GetBalance(baseToken, cancellationToken));
 		Assert.Equal(new BigInteger(Amount), await client.GetBalance(recipient, baseToken, cancellationToken));
 
 		harness.Shutdown();
@@ -260,6 +260,142 @@ public sealed class NodeFlowTests
 		Assert.True(heads.Count >= 2);
 		string[] observed = heads.ToArray();
 		Assert.NotEqual(observed[0], observed[^1]);
+
+		harness.Shutdown();
+	}
+
+	[Fact]
+	public async Task ChangeSocketReactsToTheLiveNodeBroadcast()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("node");
+		LedgerNode node = LedgerNode.Start(harness);
+
+		using var runtime = WasmRuntime.Load();
+		using Account holder = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account recipient = runtime.Accounts.FromSeed(E2eSeeds.Recipient, 0, E2eSeeds.Secp256k1);
+
+		// The reference node's real P2P socket serves this client, so the
+		// greeting and the staple broadcasts cross implementations.
+		var endpoints = new[] { new RepresentativeEndpoint(null, node.Api, node.P2p) };
+		using UserClient user = runtime.CreateUserClient(endpoints, holder, network: node.Network);
+		Account baseToken = user.Client.BaseToken!;
+
+		node.Fund(E2eSeeds.Subject, Funding);
+
+		// A long fallback keeps the poll out of the test. Every emission
+		// below must arrive through the socket.
+		var heads = new System.Collections.Concurrent.ConcurrentQueue<string>();
+		using var delivered = new SemaphoreSlim(0);
+		var options = new ChangeListenerOptions { FallbackFrequency = TimeSpan.FromMinutes(10) };
+
+		using (user.OnChange(
+			state =>
+			{
+				heads.Enqueue(state.HeadBlock?.ToString() ?? "");
+				delivered.Release();
+			},
+			options))
+		{
+			// The socket needs a moment to connect and greet, or the node
+			// broadcasts the first staple before this participant registers.
+			await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+
+			// The node broadcasts each published staple to the greeted
+			// socket, and the listener re-reads the account and emits.
+			Assert.True(await user.Send(recipient, 7, baseToken, cancellationToken: cancellationToken));
+			Assert.True(await delivered.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken));
+			Assert.True(await user.Send(recipient, 9, baseToken, cancellationToken: cancellationToken));
+			Assert.True(await delivered.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken));
+		}
+
+		// Each broadcast delivered a fresh head, and the final head matches
+		// the reference client's own view of the chain.
+		Assert.True(heads.Count >= 2);
+		string[] observed = heads.ToArray();
+		Assert.NotEqual(observed[0], observed[^1]);
+		Assert.Equal(BlockHash.Parse(node.Head(holder.PublicKeyString)!), BlockHash.Parse(observed[^1]));
+
+		harness.Shutdown();
+	}
+
+	[Fact]
+	public async Task ChangeSocketDropsOversizedFramesAndReconnects()
+	{
+		CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+		using var harness = NodeHarness.Spawn("node");
+		LedgerNode node = LedgerNode.Start(harness);
+
+		await using ScriptedP2pNode p2p = await ScriptedP2pNode.Start();
+
+		using var runtime = WasmRuntime.Load();
+		using Account holder = runtime.Accounts.FromSeed(E2eSeeds.Subject, 0, E2eSeeds.Secp256k1);
+		using Account recipient = runtime.Accounts.FromSeed(E2eSeeds.Recipient, 0, E2eSeeds.Secp256k1);
+
+		// The scripted endpoint stands in for the P2P socket, so the test
+		// can send the hostile frames the reference node never produces.
+		var endpoints = new[] { new RepresentativeEndpoint(null, node.Api, p2p.WsUrl) };
+		using UserClient user = runtime.CreateUserClient(endpoints, holder, network: node.Network);
+		Account baseToken = user.Client.BaseToken!;
+
+		node.Fund(E2eSeeds.Subject, Funding);
+
+		// A long fallback keeps the poll out of the test. Every emission
+		// below must arrive through the socket.
+		var heads = new System.Collections.Concurrent.ConcurrentQueue<string>();
+		using var delivered = new SemaphoreSlim(0);
+		var options = new ChangeListenerOptions { FallbackFrequency = TimeSpan.FromMinutes(10) };
+
+		using (user.OnChange(
+			state =>
+			{
+				heads.Enqueue(state.HeadBlock?.ToString() ?? "");
+				delivered.Release();
+			},
+			options))
+		{
+			// The client greets as a participant filtered to its account.
+			ScriptedP2pConnection first = await p2p.NextConnection(cancellationToken);
+			JsonElement greeting = first.Greeting.GetProperty("greeting");
+			Assert.Equal(0, greeting.GetProperty("kind").GetInt32());
+			Assert.Equal(holder.PublicKeyString, greeting.GetProperty("filter").GetString());
+			Assert.False(string.IsNullOrEmpty(first.Greeting.GetProperty("id").GetString()));
+
+			// An `add` notification makes the client re-read the account.
+			await first.Send("{\"add\":{}}");
+			Assert.True(await delivered.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken));
+
+			// Advance the ledger, then trip the oversize guard.
+			Assert.True(await user.Send(recipient, 7, baseToken, cancellationToken: cancellationToken));
+			try
+			{
+				await first.Send("{\"pad\":\"" + new string('x', 2 * 1024 * 1024) + "\"}");
+			}
+			catch (System.Net.WebSockets.WebSocketException)
+			{
+				// The client aborts mid-frame once the guard trips, so the
+				// send may observe the closed connection.
+			}
+
+			first.Complete();
+
+			// The client reconnects with backoff and greets again. The next
+			// add delivers the advanced head.
+			ScriptedP2pConnection second = await p2p.NextConnection(cancellationToken);
+			Assert.Equal(
+				holder.PublicKeyString,
+				second.Greeting.GetProperty("greeting").GetProperty("filter").GetString());
+
+			await second.Send("{\"add\":{}}");
+			Assert.True(await delivered.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken));
+			second.Complete();
+		}
+
+		Assert.Equal(2, heads.Count);
+
+		string[] observed = heads.ToArray();
+		Assert.NotEqual(observed[0], observed[1]);
+		Assert.NotEmpty(observed[1]);
 
 		harness.Shutdown();
 	}
@@ -327,7 +463,7 @@ public sealed class NodeFlowTests
 		using Permissions access = runtime.Blocks.PermissionsFromFlags(AccessFlag);
 		Assert.True(await user.UpdatePermissions(recipient, access, cancellationToken: cancellationToken));
 
-		AccountState state = await user.State(cancellationToken);
+		AccountState state = await user.GetState(cancellationToken);
 		Assert.Equal("HOLDER", state.Info!.Name);
 		Assert.NotNull(state.HeadBlock);
 
@@ -349,11 +485,11 @@ public sealed class NodeFlowTests
 
 		// The chain lists most recent first. A limit of one pages with a
 		// cursor, and the block behind the head names the head as successor.
-		ChainPage newest = await user.Chain(new ChainQuery(Limit: 1), cancellationToken);
+		ChainPage newest = await user.GetChain(new ChainQuery(Limit: 1), cancellationToken);
 		Assert.Equal(head.Hash, Assert.Single(newest.Blocks).Hash);
 		Assert.NotNull(newest.NextKey);
 
-		ChainPage chain = await user.Chain(cancellationToken: cancellationToken);
+		ChainPage chain = await user.GetChain(cancellationToken: cancellationToken);
 		Assert.True(chain.Blocks.Count >= 2);
 		Assert.Equal(head.Hash, chain.Blocks[0].Hash);
 
@@ -361,7 +497,7 @@ public sealed class NodeFlowTests
 		Assert.Equal(head.Hash, successor!.Hash);
 
 		// Account and global history both carry the committed staples.
-		HistoryPage history = await user.History(cancellationToken: cancellationToken);
+		HistoryPage history = await user.GetHistory(cancellationToken: cancellationToken);
 		Assert.NotEmpty(history.Entries);
 		Assert.All(history.Entries, entry => Assert.NotEmpty(entry.StapleBytes));
 		Assert.All(history.Entries, entry => Assert.NotNull(entry.Timestamp));
@@ -379,7 +515,7 @@ public sealed class NodeFlowTests
 			vote.Dispose();
 		}
 
-		Assert.Null(await user.PendingBlock(cancellationToken));
+		Assert.Null(await user.GetPendingBlock(cancellationToken));
 		Assert.Null(await user.GetBlockFromIdempotent(Guid.NewGuid().ToString("N"), cancellationToken: cancellationToken));
 
 		// The grant reads back typed from both directions: the recipient as
@@ -426,12 +562,12 @@ public sealed class NodeFlowTests
 
 		// The one-call identifier claim derives against the pre-claim head,
 		// publishes the CREATE_IDENTIFIER block, and returns the account.
-		AccountState beforeClaim = await user.State(cancellationToken);
+		AccountState beforeClaim = await user.GetState(cancellationToken);
 		using Account tokenId = await user.GenerateIdentifier(IdentifierKind.Token, cancellationToken: cancellationToken);
 		using Account expectedId = holder.GenerateIdentifier(IdentifierKind.Token, beforeClaim.HeadBlock);
 		Assert.Equal(expectedId.PublicKeyString, tokenId.PublicKeyString);
 
-		AccountState afterClaim = await user.State(cancellationToken);
+		AccountState afterClaim = await user.GetState(cancellationToken);
 		Assert.NotEqual(beforeClaim.HeadBlock, afterClaim.HeadBlock);
 
 		harness.Shutdown();
@@ -462,7 +598,7 @@ public sealed class NodeFlowTests
 		Assert.True(await user.ModifyCertificate(
 			AdjustMethod.Add, leaf, new[] { authority }, cancellationToken: cancellationToken));
 
-		IReadOnlyList<Certificate> published = await user.GetCertificates(cancellationToken);
+		IReadOnlyList<Certificate> published = await user.GetAllCertificates(cancellationToken);
 		Certificate record = Assert.Single(published);
 		using (CryptoCertificate readBack = runtime.Certificates.Parse(record.Value))
 		{
@@ -470,14 +606,14 @@ public sealed class NodeFlowTests
 		}
 
 		Assert.Single(record.Intermediates);
-		Assert.NotNull(await user.GetCertificates(leaf.Hash, cancellationToken));
+		Assert.NotNull(await user.GetCertificateByHash(leaf.Hash, cancellationToken));
 
 		// The subtract retires the leaf by its hash. The reads empty out.
 		Assert.True(await user.ModifyCertificate(
 			AdjustMethod.Subtract, leaf, cancellationToken: cancellationToken));
 
-		Assert.Empty(await user.GetCertificates(cancellationToken));
-		Assert.Null(await user.GetCertificates(leaf.Hash, cancellationToken));
+		Assert.Empty(await user.GetAllCertificates(cancellationToken));
+		Assert.Null(await user.GetCertificateByHash(leaf.Hash, cancellationToken));
 
 		harness.Shutdown();
 	}

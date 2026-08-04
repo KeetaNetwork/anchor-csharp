@@ -38,7 +38,7 @@ public sealed class TestnetTests
 		await client.UpdateReps(cancellationToken: cancellationToken);
 
 		Account baseToken = client.BaseToken!;
-		BigInteger before = await user.Balance(baseToken, cancellationToken);
+		BigInteger before = await user.GetBalance(baseToken, cancellationToken);
 		Assert.True(before > BigInteger.Zero, $"fund {holder.PublicKeyString} on the testnet first");
 
 		// The send must gather votes across representatives. No single

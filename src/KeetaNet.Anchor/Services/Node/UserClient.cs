@@ -101,19 +101,19 @@ public sealed class UserClient : IDisposable
 		?? throw new KeetaException("SIGNER_REQUIRED", "bind a signer or an operating account to the user client");
 
 	/// <summary>Gets the full state of the operating account.</summary>
-	public Task<AccountState> State(CancellationToken cancellationToken = default) =>
+	public Task<AccountState> GetState(CancellationToken cancellationToken = default) =>
 		_client.GetAccountInfo(Account, cancellationToken);
 
 	/// <summary>Gets the settled balance of <paramref name="token"/> held by the operating account.</summary>
-	public Task<BigInteger> Balance(Crypto.Account token, CancellationToken cancellationToken = default) =>
+	public Task<BigInteger> GetBalance(Crypto.Account token, CancellationToken cancellationToken = default) =>
 		_client.GetBalance(Account, token, cancellationToken);
 
 	/// <summary>Gets every token balance held by the operating account.</summary>
-	public Task<IReadOnlyList<TokenBalance>> AllBalances(CancellationToken cancellationToken = default) =>
+	public Task<IReadOnlyList<TokenBalance>> GetAllBalances(CancellationToken cancellationToken = default) =>
 		_client.GetAllBalances(Account, cancellationToken);
 
 	/// <summary>Gets the certificates published by the operating account.</summary>
-	public Task<IReadOnlyList<Certificate>> GetCertificates(CancellationToken cancellationToken = default) =>
+	public Task<IReadOnlyList<Certificate>> GetAllCertificates(CancellationToken cancellationToken = default) =>
 		_client.GetAllCertificates(Account, cancellationToken);
 
 	/// <summary>
@@ -121,20 +121,20 @@ public sealed class UserClient : IDisposable
 	/// <paramref name="certificateHash"/>.
 	/// </summary>
 	/// <returns>The record, or null when the account never published it.</returns>
-	public Task<Certificate?> GetCertificates(
+	public Task<Certificate?> GetCertificateByHash(
 		Crypto.CertificateHash certificateHash,
 		CancellationToken cancellationToken = default) =>
 		_client.GetCertificateByHash(Account, certificateHash, cancellationToken);
 
 	/// <summary>Gets the hash of the operating account's head block, or null for a fresh account.</summary>
-	public async Task<Crypto.BlockHash?> Head(CancellationToken cancellationToken = default)
+	public async Task<Crypto.BlockHash?> GetHead(CancellationToken cancellationToken = default)
 	{
 		using Crypto.Block? head = await _client.GetHeadBlock(Account, cancellationToken).ConfigureAwait(false);
 		return head?.Hash;
 	}
 
 	/// <summary>Gets the next pending (unreceived) block for the operating account, if any.</summary>
-	public Task<Crypto.Block?> PendingBlock(CancellationToken cancellationToken = default) =>
+	public Task<Crypto.Block?> GetPendingBlock(CancellationToken cancellationToken = default) =>
 		_client.GetPendingBlock(Account, cancellationToken);
 
 	/// <summary>
@@ -148,11 +148,11 @@ public sealed class UserClient : IDisposable
 		_client.GetBlockFromIdempotent(Account, key, side, cancellationToken);
 
 	/// <summary>Gets one page of the operating account's block chain, most recent first.</summary>
-	public Task<ChainPage> Chain(ChainQuery? query = null, CancellationToken cancellationToken = default) =>
+	public Task<ChainPage> GetChain(ChainQuery? query = null, CancellationToken cancellationToken = default) =>
 		_client.GetChain(Account, query, cancellationToken);
 
 	/// <summary>Gets one page of the operating account's committed staple history.</summary>
-	public Task<HistoryPage> History(HistoryQuery? query = null, CancellationToken cancellationToken = default) =>
+	public Task<HistoryPage> GetHistory(HistoryQuery? query = null, CancellationToken cancellationToken = default) =>
 		_client.GetHistory(Account, query, cancellationToken);
 
 	/// <summary>Lists the ACL entries where the operating account is the principal.</summary>
@@ -224,7 +224,7 @@ public sealed class UserClient : IDisposable
 		_ = RequireSigner();
 
 		TransmitOptions resolved = OrDefaultFeePayer(options);
-		AccountState state = await State(cancellationToken).ConfigureAwait(false);
+		AccountState state = await GetState(cancellationToken).ConfigureAwait(false);
 
 		KeetaClient.PositionAfter(builder, state.HeadBlock?.ToString());
 		using Crypto.Block block = builder.Build();
@@ -243,7 +243,7 @@ public sealed class UserClient : IDisposable
 		CancellationToken cancellationToken = default)
 	{
 		TransmitOptions resolved = OrDefaultFeePayer(options);
-		AccountState state = await State(cancellationToken).ConfigureAwait(false);
+		AccountState state = await GetState(cancellationToken).ConfigureAwait(false);
 
 		Crypto.Account identifier = Account.GenerateIdentifier(kind, state.HeadBlock);
 		try
@@ -569,7 +569,7 @@ public sealed class UserClient : IDisposable
 
 		try
 		{
-			AccountState state = await State(cancellationToken).ConfigureAwait(false);
+			AccountState state = await GetState(cancellationToken).ConfigureAwait(false);
 			try
 			{
 				string fingerprint = FingerprintOf(state);

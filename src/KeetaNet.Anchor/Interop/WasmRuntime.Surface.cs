@@ -76,6 +76,20 @@ public sealed partial class WasmRuntime
 		new(this, network.Representatives(), httpClient, network.Id());
 
 	/// <summary>
+	/// Creates the base client over a custom <paramref name="representatives"/> set.
+	/// </summary>
+	/// <remarks>
+	/// This is the custom-configuration path for self-hosted networks. See
+	/// the <see cref="KeetaNetwork"/> overload for the fan-out behavior and
+	/// the URL overload for the remaining parameters.
+	/// </remarks>
+	public KeetaClient CreateKeetaClient(
+		IReadOnlyList<RepresentativeEndpoint> representatives,
+		HttpClient? httpClient = null,
+		long? network = null) =>
+		new(this, representatives, httpClient, network);
+
+	/// <summary>
 	/// Creates a client bound to <paramref name="signer"/>, or a read-only
 	/// client when the signer is null.
 	/// </summary>
@@ -103,4 +117,17 @@ public sealed partial class WasmRuntime
 		HttpClient? httpClient = null,
 		Account? account = null) =>
 		new(this, CreateKeetaClient(network, httpClient), signer, account);
+
+	/// <summary>
+	/// Creates a signer-bound client over a custom
+	/// <paramref name="representatives"/> set.
+	/// </summary>
+	/// <remarks>See the URL overload for the remaining parameters.</remarks>
+	public UserClient CreateUserClient(
+		IReadOnlyList<RepresentativeEndpoint> representatives,
+		Account? signer,
+		HttpClient? httpClient = null,
+		long? network = null,
+		Account? account = null) =>
+		new(this, CreateKeetaClient(representatives, httpClient, network), signer, account);
 }
