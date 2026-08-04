@@ -509,6 +509,12 @@ public sealed class UserClient : IDisposable
 			cancellationToken).ConfigureAwait(false);
 	}
 
+	/// <summary>
+	/// The largest socket message the listener accepts. The notifications are
+	/// small JSON objects, so anything larger is a misbehaving peer.
+	/// </summary>
+	private const int MaxSocketMessageBytes = 1024 * 1024;
+
 	/// <summary>Consumes socket messages until the socket closes and reacts to <c>add</c> notifications.</summary>
 	private async Task ListenForStaples(ClientWebSocket socket, CancellationToken cancellationToken)
 	{
@@ -520,6 +526,13 @@ public sealed class UserClient : IDisposable
 			do
 			{
 				result = await socket.ReceiveAsync(buffer, cancellationToken).ConfigureAwait(false);
+				if (message.Length + result.Count > MaxSocketMessageBytes)
+				{
+					// Surfacing this as a socket failure drops the connection
+					// and re-enters the backoff loop, bounding memory.
+					throw new WebSocketException("the peer sent an oversized message");
+				}
+
 				message.Write(buffer, 0, result.Count);
 			}
 			while (!result.EndOfMessage);
@@ -529,7 +542,8 @@ public sealed class UserClient : IDisposable
 				return;
 			}
 
-			using JsonDocument document = JsonDocument.Parse(Encoding.UTF8.GetString(message.ToArray()));
+			var payload = new ReadOnlyMemory<byte>(message.GetBuffer(), 0, (int)message.Length);
+			using JsonDocument document = JsonDocument.Parse(payload);
 			if (document.RootElement.TryGetProperty("add", out _))
 			{
 				await EmitIfChanged(cancellationToken).ConfigureAwait(false);
