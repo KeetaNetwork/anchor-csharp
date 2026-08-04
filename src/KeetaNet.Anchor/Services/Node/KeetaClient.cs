@@ -612,7 +612,9 @@ public sealed class KeetaClient : IDisposable
 	/// <remarks>
 	/// Unknown representatives join the set when
 	/// <paramref name="addNewRepresentatives"/> is set. Reads and votes
-	/// prefer the representatives with higher weights afterward.
+	/// prefer the representatives with higher weights afterward. The
+	/// contacted node advertises the endpoints and the client sends requests
+	/// to them, so enable discovery only against a trusted network.
 	/// </remarks>
 	[SuppressMessage("IDisposableAnalyzers.Correctness", "IDISP007:Don't dispose injected",
 		Justification = "GetAllRepresentativeInfo transfers ownership of the returned accounts to the caller; this method is that caller.")]
@@ -637,10 +639,7 @@ public sealed class KeetaClient : IDisposable
 						continue;
 					}
 
-					// Two entries with one URL would double-contact the same
-					// node, so an already-known endpoint never joins again.
-					bool knownUrl = _representatives.Exists(rep => rep.Endpoint.ApiUrl == info.ApiUrl);
-					if (addNewRepresentatives && !knownUrl && !string.IsNullOrEmpty(info.ApiUrl))
+					if (addNewRepresentatives && IsAdoptableUrl(info.ApiUrl))
 					{
 						var endpoint = new RepresentativeEndpoint(key, info.ApiUrl, null);
 						_representatives.Add(new Representative(endpoint, new NodeApi(_representativeHttp) { BaseUrl = info.ApiUrl })
@@ -654,6 +653,14 @@ public sealed class KeetaClient : IDisposable
 
 		_representativesRefreshedAt = DateTimeOffset.UtcNow;
 	}
+
+	/// <summary>
+	/// Returns whether an advertised endpoint may join the representative
+	/// set. Only absolute HTTP and HTTPS URLs qualify.
+	/// </summary>
+	private static bool IsAdoptableUrl([NotNullWhen(true)] string? url) =>
+		Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed)
+		&& (parsed.Scheme == Uri.UriSchemeHttps || parsed.Scheme == Uri.UriSchemeHttp);
 
 	/// <summary>
 	/// Ensures that the representative weights are fresh before a voting round.
