@@ -10,6 +10,9 @@ ignorePaths:
   - tests/node-harness/node_modules/**
   - tests/node-harness/dist/**
   - tests/node-harness/package-lock.json
+ignoreRegExpList:
+  # KeetaNet account addresses (base32 payloads).
+  - "keeta_[a-z0-9]+"
 words:
   - keeta
   - keetanet
@@ -71,3 +74,4 @@ words:
   - powershell
   - renderable
   - solana
+  - tkna

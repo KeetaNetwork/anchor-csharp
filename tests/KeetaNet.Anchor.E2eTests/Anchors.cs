@@ -61,14 +61,16 @@ internal sealed class LedgerNode
 	private readonly NodeHarness _harness;
 
 	public string Api { get; }
+	public string P2p { get; }
 	public string BaseToken { get; }
 	public string Representative { get; }
 	public long Network { get; }
 
-	private LedgerNode(NodeHarness harness, string api, string baseToken, string representative, long network)
+	private LedgerNode(NodeHarness harness, string api, string p2p, string baseToken, string representative, long network)
 	{
 		_harness = harness;
 		Api = api;
+		P2p = p2p;
 		BaseToken = baseToken;
 		Representative = representative;
 		Network = network;
@@ -82,6 +84,7 @@ internal sealed class LedgerNode
 		return new LedgerNode(
 			harness,
 			started.GetProperty("api").GetString()!,
+			started.GetProperty("p2p").GetString()!,
 			started.GetProperty("baseToken").GetString()!,
 			started.GetProperty("representative").GetString()!,
 			long.Parse(started.GetProperty("network").GetString()!, System.Globalization.CultureInfo.InvariantCulture));

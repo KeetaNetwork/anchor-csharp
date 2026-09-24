@@ -3,16 +3,19 @@ using KeetaNet.Anchor.Crypto;
 namespace KeetaNet.Anchor;
 
 /// <summary>
-/// The runtime's public creation surface: domain factories for handle-backed
-/// crypto objects, and creation methods for the networked clients. Everything
-/// created here is owned by this runtime and must be disposed before it.
+/// The runtime's public creation surface.
 /// </summary>
+/// <remarks>
+/// The surface exposes domain factories for handle-backed crypto objects and
+/// creation methods for the networked clients. This runtime owns everything
+/// created here, and callers must dispose those objects before the runtime.
+/// </remarks>
 public sealed partial class WasmRuntime
 {
-	/// <summary>Creates accounts: signers from key material, read-only accounts from addresses or public keys.</summary>
+	/// <summary>Creates signers from key material and read-only accounts from addresses or public keys.</summary>
 	public AccountFactory Accounts { get; }
 
-	/// <summary>Parses base X.509 certificates: provider CAs, trust roots, intermediates.</summary>
+	/// <summary>Parses base X.509 certificates, such as provider CAs, trust roots, and intermediates.</summary>
 	public CertificateFactory Certificates { get; }
 
 	/// <summary>Parses and issues KYC leaf certificates.</summary>
@@ -28,47 +31,74 @@ public sealed partial class WasmRuntime
 	public BlockFactory Blocks { get; }
 
 	/// <summary>
-	/// Create a KYC anchor client signed by <paramref name="account"/>, resolving
-	/// providers from <paramref name="root"/>'s on-chain service metadata read via
-	/// the node API at <paramref name="nodeUrl"/>.
+	/// Creates a KYC anchor client signed by <paramref name="account"/>.
 	/// </summary>
+	/// <remarks>
+	/// The client resolves providers from the on-chain service metadata of
+	/// <paramref name="root"/> through the node API at <paramref name="nodeUrl"/>.
+	/// </remarks>
 	public KycClient CreateKycClient(string nodeUrl, string root, Account account) =>
 		KycClient.WithAccount(this, nodeUrl, root, account);
 
 	/// <summary>
-	/// Create an asset-movement anchor client signed by <paramref name="account"/>,
-	/// resolving providers from <paramref name="root"/>'s on-chain service metadata
-	/// read via the node API at <paramref name="nodeUrl"/>.
+	/// Creates an asset-movement anchor client signed by <paramref name="account"/>.
 	/// </summary>
+	/// <remarks>
+	/// The client resolves providers from the on-chain service metadata of
+	/// <paramref name="root"/> through the node API at <paramref name="nodeUrl"/>.
+	/// </remarks>
 	public AssetMovementClient CreateAssetMovementClient(string nodeUrl, string root, Account account) =>
 		AssetMovementClient.WithAccount(this, nodeUrl, root, account);
 
 	/// <summary>
-	/// Create the base client for the node API at <paramref name="nodeUrl"/>.
-	/// An injected <paramref name="httpClient"/> (for example from
-	/// <c>IHttpClientFactory</c>) is borrowed, not disposed. Absent one the
-	/// client owns its own. Binding <paramref name="network"/> enables the
-	/// write path (<see cref="KeetaClient.Transmit(Crypto.Block, TransmitOptions?, CancellationToken)"/>
-	/// and fee blocks). A client without one stays read-only.
+	/// Creates the base client for the node API at <paramref name="nodeUrl"/>.
 	/// </summary>
+	/// <remarks>
+	/// An injected <paramref name="httpClient"/> (for example from
+	/// <c>IHttpClientFactory</c>) is borrowed and never disposed. Without one
+	/// the client owns its own. Binding <paramref name="network"/> enables
+	/// the write path
+	/// (<see cref="KeetaClient.Transmit(Crypto.Block, TransmitOptions?, CancellationToken)"/>
+	/// and fee blocks). A client without one stays read-only.
+	/// </remarks>
 	public KeetaClient CreateKeetaClient(string nodeUrl, HttpClient? httpClient = null, long? network = null) =>
 		new(this, nodeUrl, httpClient, network);
 
 	/// <summary>
-	/// Create the base client for a well-known <paramref name="network"/>,
-	/// the reference <c>fromNetwork</c>: its first representative's endpoint
-	/// and its network id, so the write path is enabled.
+	/// Creates the base client for a well-known <paramref name="network"/>.
 	/// </summary>
+	/// <remarks>
+	/// The client binds the network's default representative set and its
+	/// network id, so the write path is enabled. Votes fan out to every
+	/// representative. Reads go to the representative with the highest weight.
+	/// </remarks>
 	public KeetaClient CreateKeetaClient(KeetaNetwork network, HttpClient? httpClient = null) =>
-		new(this, network.RepresentativeApiUrl(), httpClient, network.Id());
+		new(this, network.Representatives(), httpClient, network.Id());
 
 	/// <summary>
-	/// Create a client bound to <paramref name="signer"/> (null for a
-	/// read-only client), operating as <paramref name="account"/> when given
-	/// and as the signer itself otherwise. Both accounts are borrowed, not
+	/// Creates the base client over a custom <paramref name="representatives"/> set.
+	/// </summary>
+	/// <remarks>
+	/// This is the custom-configuration path for self-hosted networks. See
+	/// the <see cref="KeetaNetwork"/> overload for the fan-out behavior and
+	/// the URL overload for the remaining parameters.
+	/// </remarks>
+	public KeetaClient CreateKeetaClient(
+		IReadOnlyList<RepresentativeEndpoint> representatives,
+		HttpClient? httpClient = null,
+		long? network = null) =>
+		new(this, representatives, httpClient, network);
+
+	/// <summary>
+	/// Creates a client bound to <paramref name="signer"/>, or a read-only
+	/// client when the signer is null.
+	/// </summary>
+	/// <remarks>
+	/// The client operates as <paramref name="account"/> when given, or as
+	/// the signer itself otherwise. Both accounts are borrowed and never
 	/// disposed. See <see cref="CreateKeetaClient(string, HttpClient?, long?)"/>
 	/// for the remaining parameters.
-	/// </summary>
+	/// </remarks>
 	public UserClient CreateUserClient(
 		string nodeUrl,
 		Account? signer,
@@ -78,14 +108,26 @@ public sealed partial class WasmRuntime
 		new(this, nodeUrl, httpClient, network, signer, account);
 
 	/// <summary>
-	/// Create a signer-bound client for a well-known
-	/// <paramref name="network"/>, the reference <c>UserClient.fromNetwork</c>.
-	/// See the URL overload for the remaining parameters.
+	/// Creates a signer-bound client for a well-known <paramref name="network"/>.
 	/// </summary>
+	/// <remarks>See the URL overload for the remaining parameters.</remarks>
 	public UserClient CreateUserClient(
 		KeetaNetwork network,
 		Account? signer,
 		HttpClient? httpClient = null,
 		Account? account = null) =>
-		new(this, network.RepresentativeApiUrl(), httpClient, network.Id(), signer, account);
+		new(this, CreateKeetaClient(network, httpClient), signer, account);
+
+	/// <summary>
+	/// Creates a signer-bound client over a custom
+	/// <paramref name="representatives"/> set.
+	/// </summary>
+	/// <remarks>See the URL overload for the remaining parameters.</remarks>
+	public UserClient CreateUserClient(
+		IReadOnlyList<RepresentativeEndpoint> representatives,
+		Account? signer,
+		HttpClient? httpClient = null,
+		long? network = null,
+		Account? account = null) =>
+		new(this, CreateKeetaClient(representatives, httpClient, network), signer, account);
 }
