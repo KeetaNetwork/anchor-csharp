@@ -62,6 +62,8 @@ Interop is Wasmtime-hosted WebAssembly, not native P/Invoke. Guest memory is a s
 - **Thread-safe by construction.** A `WasmRuntime` owns one Wasmtime `Store`, which cannot be used from more than one thread. The runtime confines it to a dedicated dispatcher thread and serializes every call onto it, so any thread may use the SDK: offline operations dispatch synchronously, networked client operations are `async` and accept a `CancellationToken`.
 - **Deterministic disposal.** Handle-backed types (`Account`, `Certificate`, `KycCertificate`, containers, the clients) implement `IDisposable` and release their wasm handle on `Dispose`. Wrap them in `using`.
 
+[Architecture](docs/ARCHITECTURE.md) states the decisions behind those rules.
+
 ## License
 
 See [LICENSE](LICENSE).

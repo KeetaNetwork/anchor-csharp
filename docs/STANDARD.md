@@ -29,7 +29,7 @@ One body of knowledge takes one page as its home. A second page that needs it MU
 
 Contract pages live as UPPER_CASE names under `docs/`. Supplementary guides live as lowercase names under `docs/resources/`. This package has no `src/*/docs/` modules.
 
-[Architecture](ARCHITECTURE.md) holds the package collaboration graph and the interaction path. That page MUST include at least one Mermaid diagram with keyword-safe ids. It MUST name the owning type and one key symbol on each step of that path. It MUST state contracts in the positive. [Quickstart](QUICKSTART.md) is the home for fenced usage examples. The source is the home for the public export list.
+[Architecture](ARCHITECTURE.md) holds the load-bearing boundaries, the rejected alternatives, and the cross-file invariants. That page MUST include Mermaid diagrams with keyword-safe ids when the design needs more than one view. It MUST name the owning type and one key symbol at each boundary. It MUST record each rejected alternative next to the decision that closed it. It MUST record each cross-file invariant with the enforcement point and the failure that invariant prevents. It MUST name inbound and outbound neighbors. It MUST state contracts in the positive. [Quickstart](QUICKSTART.md) is the home for fenced usage examples. The source is the home for the public export list.
 
 When a page must name a symbol, it cites that symbol as `Symbol` in `path/to/file`. The source carries its own detail.
 

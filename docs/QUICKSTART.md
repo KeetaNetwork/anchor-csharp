@@ -6,7 +6,7 @@ This page is the install, build, and first-use path for `KeetaNet.Anchor`. It re
 
 ## Purpose
 
-Read this page when you clone the repository or when you install the published packages. After reading you can restore the SDK, build, lint, test, and run two first-use calls.
+Read this page when you clone the repository or when you install the published packages. After reading you can restore the SDK, build, lint, test, and run two first-use calls. The host and guest design lives on [Architecture](ARCHITECTURE.md).
 
 ## Requirements
 
